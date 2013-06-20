@@ -67,20 +67,7 @@
                     execDomLoadedFunc();
                 }
             }
-        }
-
-        L.ready = function(oFunc){
-            if(domLoadComplete){
-                if (typeof (oFunc) === 'function') {
-                    setTimeout(function(){
-                        oFunc.call();
-                    }, 25);
-                }
-            }else{
-                domReadyFuncList.push(oFunc);
-                ready();
-            }
-        };
+        },
 
         util = L.util= {
             /**
@@ -99,6 +86,19 @@
                 return util.is("Array", item);
             }
         };
+
+    L.ready = function(oFunc){
+        if(domLoadComplete){
+            if (typeof (oFunc) === 'function') {
+                setTimeout(function(){
+                    oFunc.call();
+                }, 25);
+            }
+        }else{
+            domReadyFuncList.push(oFunc);
+            ready();
+        }
+    };
 
     L.browser = (function(){
 
