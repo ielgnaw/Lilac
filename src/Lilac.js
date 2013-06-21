@@ -41,7 +41,6 @@
          * domLoad完成后执行回调函数
          */
         execDomLoadedFunc = function(){
-            console.log(domReadyFuncList);
             for (var i = 0, len = domReadyFuncList.length; i < len; i++) {
                 if (typeof (domReadyFuncList[i]) === 'function') {
                     try {
@@ -58,7 +57,6 @@
         },
 
         ready = function(){
-            console.log(domReadyFuncList);
             if (doc.addEventListener) {
                 if(!isBindDomContentLoaded){
                     doc.addEventListener("DOMContentLoaded", execDomLoadedFunc, false);
@@ -119,7 +117,6 @@
     L.ready = function(oFunc){
         domLoadComplete = doc.readyState === 'complete' ? true: false;
         if(domLoadComplete){
-            console.log(oFunc);
             if (typeof (oFunc) === 'function') {
                 setTimeout(function(){
                     oFunc.call(null, L);
