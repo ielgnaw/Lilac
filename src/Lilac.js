@@ -11,14 +11,11 @@
 
     var doc = win.document,
 
+        // dom是否加载完成的标识
+        isDomLoaded = false,
+
         // dom加载完成后需要执行的函数集合
         domReadyFuncList = [],
-
-        // dom是否加载完成的标识
-        domLoadComplete = false,
-
-        // 是否绑定 DOMContentLoaded 事件
-        isBindDomContentLoaded = false,
 
         /**
          * 在IE中，任何DOM元素都有一个 doScroll 方法，无论它们是否支持滚动条。
@@ -31,6 +28,7 @@
         scrollCheck = function(){
             try {
                 doc.documentElement.doScroll("left");
+                execDomLoadedFunc();
             } catch (error) {
                 setTimeout(scrollCheck, 25);
                 return;
@@ -41,31 +39,23 @@
          * domLoad完成后执行回调函数
          */
         execDomLoadedFunc = function(){
-            for (var i = 0, len = domReadyFuncList.length; i < len; i++) {
-                if (typeof (domReadyFuncList[i]) === 'function') {
-                    try {
-                        domReadyFuncList[i].call(null, L);
-                    } catch (e) {
-                        throw new Error(e);
+            if(!isDomLoaded){
+                isDomLoaded = true;
+                var i, item;
+                for (i = 0; item = domReadyFuncList[i]; i++) {
+                    if (typeof (item) === 'function') {
+                        try {
+                            item.call(null, L);
+                        } catch (e) {
+                            throw new Error(e);
+                        }
                     }
                 }
-            }
-            if(isBindDomContentLoaded){
-                doc.removeEventListener("DOMContentLoaded", execDomLoadedFunc, false);
-                isBindDomContentLoaded = false;
-            }
-        },
-
-        ready = function(){
-            if (doc.addEventListener) {
-                if(!isBindDomContentLoaded){
-                    doc.addEventListener("DOMContentLoaded", execDomLoadedFunc, false);
-                    isBindDomContentLoaded = true;
-                }
-            }else {
-                if (doc.documentElement.doScroll && window == window.top){
-                    scrollCheck();
-                    execDomLoadedFunc();
+                if (doc.removeEventListener) {
+                    doc.removeEventListener("DOMContentLoaded", execDomLoadedFunc, false);
+                    win.removeEventListener("load", execDomLoadedFunc, false);
+                }else if(win.detachEvent){
+                    win.detachEvent("onload", execDomLoadedFunc);
                 }
             }
         },
@@ -114,19 +104,26 @@
             }
         };
 
-    L.ready = function(oFunc){
-        domLoadComplete = doc.readyState === 'complete' ? true: false;
-        if(domLoadComplete){
-            if (typeof (oFunc) === 'function') {
-                setTimeout(function(){
-                    oFunc.call(null, L);
-                }, 25);
+    if (doc.addEventListener) {
+        doc.addEventListener("DOMContentLoaded", execDomLoadedFunc, false);
+        win.addEventListener("load", execDomLoadedFunc, false);
+    }else if(win.attachEvent){
+        win.attachEvent("onload", execDomLoadedFunc);
+
+        if (doc.documentElement.doScroll && window == window.top){
+            scrollCheck();
+        }
+    }
+
+    L.ready = function(func){
+        if(isDomLoaded){
+            if (typeof (func) === 'function') {
+                func.call(null, L);
             }
         }else{
-            domReadyFuncList.push(oFunc);
-            ready();
+            domReadyFuncList.push(func);
         }
-    };
+    }
 
     L.browser = (function(){
 
