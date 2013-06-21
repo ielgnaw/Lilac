@@ -44,9 +44,9 @@
             for (var i = 0, len = domReadyFuncList.length; i < len; i++) {
                 if (typeof (domReadyFuncList[i]) === 'function') {
                     try {
-                        domReadyFuncList[i].call();
-                    } catch (exp) {
-
+                        domReadyFuncList[i].call(null, L);
+                    } catch (e) {
+                        throw new Error(e);
                     }
                 }
             }
@@ -84,6 +84,32 @@
 
             isArray: function(item) {
                 return util.is("Array", item);
+            },
+
+            isObject: function(item) {
+                return util.is("Object", item);
+            },
+
+            each: function(items, callback){
+                if(!items){
+                    return;
+                }
+                if(!util.isArray(items)){
+                    if(util.isObject(items)){
+                        for(var key in items){
+                            callback.call(null, key, items[key]);
+                        }
+                    }else{
+                        try{
+                            items = Array.prototype.slice.call(items);
+                        }catch(e){
+                            throw new Error(e);
+                        }
+                    }
+                }
+                for (var index = 0, len = items.length; index < len; index++) {
+                    callback.call(null, index, items[index]);
+                }
             }
         };
 
@@ -91,7 +117,7 @@
         if(domLoadComplete){
             if (typeof (oFunc) === 'function') {
                 setTimeout(function(){
-                    oFunc.call();
+                    oFunc.call(null, L);
                 }, 25);
             }
         }else{
@@ -157,5 +183,7 @@
 
         return browser;
     })();
+
+
 
 })(window, 'Lilac');

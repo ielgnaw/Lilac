@@ -7,9 +7,18 @@
 <script type="text/javascript" src="Lilac.js"></script>
 </head>
 <body>
-<script>
-    Lilac.ready(function(){
-        console.log(9);
+<script type="text/javascript">
+
+    Lilac.ready(function($){
+        $.util.each(['a', 'b', 'c'], function(index, item){
+            console.log(index, item);
+        });
+
+
+        $.util.each({a:1,b:2}, function(key, value){
+            console.log(key, value);
+        });
+
     });
 </script>
 </body>
