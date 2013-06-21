@@ -126,10 +126,20 @@
     }
 
     L.browser = (function(){
-
-        var ua = win.navigator.userAgent.toLowerCase();
+        var os,
+            ua = win.navigator.userAgent.toLowerCase();
+        if(ua.indexOf("windows",0) != -1){
+            os = 'windows';
+        }else if(ua.indexOf("mac",0) != -1){
+            os = 'mac';
+        }else if(ua.indexOf("linux",0) != -1){
+            os = 'linux';
+        }else if(ua.indexOf("x11",0) != -1){
+            os = 'unix';
+        }
 
         var browser = {
+            os: os,
             ie: false,
             ie6: false,
             ie7: false,
