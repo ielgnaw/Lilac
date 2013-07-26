@@ -6,8 +6,6 @@
 <script type="text/javascript" src="../src/L.js"></script>
 </head>
 <input type="button" value="a" id="a">
-<input type="button" value="b" id="b">
-<input type="button" value="c" id="c">
 <input type="button" value="simple" id="simple">
 <input type="button" value="simpleDependency" id="simpleDependency">
 <input type="button" value="relativeDependency" id="relativeDependency">
@@ -39,31 +37,13 @@
         }
 
         $('a').onclick = function(){
-            require(['moduleA/a','../../moduleD/d', '../ttt'], function(){
+            require(['moduleA/a','../../moduleD/d'], function(){
             // require(['moduleC/c', '../moduleD/d'], function(a,d){
             // require(['../moduleD/d'], function(d){
             // require(['moduleB/b'], function(b){
             // require(['moduleA/a'], function(a){
             // require(['moduleC/c'], function(){
-            // require(['../ttt'], function(tt){
-            // require(['moduleA/a', '../ttt'], function(requireA){
                 console.log('require moduleA/a', arguments, arguments.length);
-            });
-        }
-
-        $('b').onclick = function(){
-            // require(['moduleA/a', 'moduleB/b'], function(){
-            require(['../ttt'], function(){
-            // require(['moduleB/b'], function(eee){
-                console.log('require ../ttt', arguments, arguments.length);
-            });
-        }
-
-        $('c').onclick = function(){
-            // require(['moduleA/a', 'moduleB/b'], function(){
-            require(['../ttt', 'moduleA/a'], function(){
-            // require(['moduleB/b'], function(eee){
-                console.log('require ../ttt', arguments, arguments.length);
             });
         }
     }
