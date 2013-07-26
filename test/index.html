@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>test</title>
+<script type="text/javascript" src="../src/L.js"></script>
+</head>
+<input type="button" value="a" id="a">
+<input type="button" value="b" id="b">
+<input type="button" value="c" id="c">
+<input type="button" value="simple" id="simple">
+<input type="button" value="simpleDependency" id="simpleDependency">
+<input type="button" value="relativeDependency" id="relativeDependency">
+<body>
+<script type="text/javascript">
+    require.config.baseUrl = './';
+    window.onload = function(){
+        var $ = function(id){
+            return typeof id == 'string' ? document.getElementById(id) : id;
+        }
+
+        $('simple').onclick = function(){
+            require(['amd/simple/index/index'], function(){
+                console.log('require amd/simple/index/index', arguments, arguments.length);
+            });
+        }
+
+        $('simpleDependency').onclick = function(){
+            require(['amd/simpleDependency/index'], function(b){
+                console.log(b.check());
+                console.log('require amd/simpleDependency/index', arguments, arguments.length);
+            });
+        }
+
+        $('relativeDependency').onclick = function(){
+            require(['amd/relativeDependency/index'], function(b){
+                console.log('require amd/relativeDependency/index', arguments, arguments.length);
+            });
+        }
+
+        $('a').onclick = function(){
+            require(['moduleA/a','../../moduleD/d', '../ttt'], function(){
+            // require(['moduleC/c', '../moduleD/d'], function(a,d){
+            // require(['../moduleD/d'], function(d){
+            // require(['moduleB/b'], function(b){
+            // require(['moduleA/a'], function(a){
+            // require(['moduleC/c'], function(){
+            // require(['../ttt'], function(tt){
+            // require(['moduleA/a', '../ttt'], function(requireA){
+                console.log('require moduleA/a', arguments, arguments.length);
+            });
+        }
+
+        $('b').onclick = function(){
+            // require(['moduleA/a', 'moduleB/b'], function(){
+            require(['../ttt'], function(){
+            // require(['moduleB/b'], function(eee){
+                console.log('require ../ttt', arguments, arguments.length);
+            });
+        }
+
+        $('c').onclick = function(){
+            // require(['moduleA/a', 'moduleB/b'], function(){
+            require(['../ttt', 'moduleA/a'], function(){
+            // require(['moduleB/b'], function(eee){
+                console.log('require ../ttt', arguments, arguments.length);
+            });
+        }
+    }
+</script>
+</body>
+</html>
