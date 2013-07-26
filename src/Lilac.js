@@ -73,7 +73,6 @@ var define, require;
 
 
 
-
     /**
      * 获取当前运行脚本的文件的名称，用于获取匿名模块的模块名
      * 标准浏览器(IE10、Chrome、Opera、Safari、Firefox)通过强制捕获错误(e.stack)来确定为当前运行的脚本
@@ -84,13 +83,6 @@ var define, require;
         // 取得正在解析的script节点
         if (DOC.currentScript) { //firefox 4+
             return DOC.currentScript.src;
-        }
-
-        var scripts = HEAD.getElementsByTagName("script");
-        for (var i = 0, script; script = scripts[i++];) {
-            if (script.readyState === "interactive") {
-                return script.src;
-            }
         }
 
         var stack;
@@ -111,6 +103,13 @@ var define, require;
             stack = stack[0] == "(" ? stack.slice(1, -1) : stack; //.replace(/\s/, '');
             //去掉行号与或许存在的出错字符起始位置
             return stack.replace(/(:\d+)?:\d+$/i, "");
+        }
+
+        var scripts = HEAD.getElementsByTagName("script");
+        for (var i = 0, script; script = scripts[i++];) {
+            if (script.readyState === "interactive") {
+                return script.src;
+            }
         }
     }
 
@@ -179,7 +178,11 @@ var define, require;
         }
 
         if(!name){
-            name = getCurrentScript().replace(/\.js$/, '');
+            name = getCurrentScript();
+            if(!name){
+                return;
+            }
+            name = name.replace(/\.js$/, '');
         }else{
             name = parseUrl(name, absolutePath).replace(/\.js$/, '');
         }
