@@ -271,7 +271,12 @@ var define, require;
                     }
                 }
             }
-            module.exports = module.factory.apply(null, args);
+
+            module.exports = isFunction(module.factory)
+                             ?
+                             module.factory.apply(null, args)
+                             :
+                             module.factory;
         }
         return module.exports;
     }
@@ -325,7 +330,6 @@ var define, require;
         // 先要得到相对于 config.baseUrl 的绝对地址，
         // 然后根据这个绝对地址，去得到模块的地址
         absolutePath = parseUrl(require.config.baseUrl);
-
         if(!isArray(ids)){
             ids = [ids];
         }

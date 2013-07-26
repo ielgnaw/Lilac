@@ -3,12 +3,19 @@
 <head>
 <meta charset="utf-8">
 <title>test</title>
+<style type="text/css">
+</style>
 <script type="text/javascript" src="../src/Lilac.js"></script>
 </head>
 <input type="button" value="a" id="a">
 <input type="button" value="simple" id="simple">
 <input type="button" value="simpleDependency" id="simpleDependency">
 <input type="button" value="relativeDependency" id="relativeDependency">
+<input type="button" value="deepDependency" id="deepDependency">
+<input type="button" value="manyDependencies" id="manyDependencies">
+<input type="button" value="objectFactory" id="objectFactory">
+<input type="button" value="noDefineId" id="noDefineId">
+
 <body>
 <script type="text/javascript">
     require.config.baseUrl = './';
@@ -18,23 +25,59 @@
         }
 
         $('simple').onclick = function(){
-            require(['amd/simple/index/index'], function(){
+            require(['amd/simple/index/index'], function(index){
+                console.log(index);
                 console.log('require amd/simple/index/index', arguments, arguments.length);
             });
         }
 
         $('simpleDependency').onclick = function(){
-            require(['amd/simpleDependency/index'], function(b){
-                console.log(b.check());
+            require(['amd/simpleDependency/index'], function(index){
+                console.log(index);
+                console.log(index.check());
                 console.log('require amd/simpleDependency/index', arguments, arguments.length);
             });
         }
 
         $('relativeDependency').onclick = function(){
-            require(['amd/relativeDependency/index'], function(b){
+            require(['amd/relativeDependency/index'], function(index){
+                console.log(index);
+                console.log(index.check());
                 console.log('require amd/relativeDependency/index', arguments, arguments.length);
             });
         }
+
+        $('deepDependency').onclick = function(){
+            require(['amd/deepDependency/index'], function(index){
+                console.log(index);
+                console.log(index.check());
+                console.log('require amd/deepDependency/index', arguments, arguments.length);
+            });
+        }
+
+        $('manyDependencies').onclick = function(){
+            require(['amd/manyDependencies/index'], function(index){
+                console.log(index);
+                console.log(index.check());
+                console.log('require amd/manyDependencies/index', arguments, arguments.length);
+            });
+        }
+
+        $('objectFactory').onclick = function(){
+            require(['amd/objectFactory/index'], function(index){
+                console.log(index);
+                console.log('require amd/objectFactory/index', arguments, arguments.length);
+            });
+        }
+
+
+        $('noDefineId').onclick = function(){
+            require(['amd/noDefineId/index'], function(index){
+                console.log(index);
+                console.log('require amd/noDefineId/index', arguments, arguments.length);
+            });
+        }
+
 
         $('a').onclick = function(){
             require(['moduleA/a','../../moduleD/d'], function(){
