@@ -71,8 +71,6 @@ var define, require;
          */
         requireMap = {};
 
-
-
     /**
      * 获取当前运行脚本的文件的名称，用于获取匿名模块的模块名
      * 标准浏览器(IE10、Chrome、Opera、Safari、Firefox)通过强制捕获错误(e.stack)来确定为当前运行的脚本
@@ -151,7 +149,6 @@ var define, require;
         return (isHttp ? 'http://' : '') + p1.join('/') + '/' + p2.join('/').replace(/\.\.\//g, '');
     }
 
-
     function define() {
         var name, deps, factory,
             urlPath;
@@ -179,10 +176,7 @@ var define, require;
 
         if(!name){
             name = getCurrentScript();
-            if(!name){
-                return;
-            }
-            name = name.replace(/\.js$/, '');
+            name = (name && name.replace(/\.js$/, ''));
         }else{
             name = parseUrl(name, absolutePath).replace(/\.js$/, '');
         }
@@ -196,6 +190,8 @@ var define, require;
             curMod.factory = factory;
             curMod.status = MODULES_STATUS_DEFINED;
             curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
+        }else{
+            return;
         }
 
 
@@ -277,6 +273,7 @@ var define, require;
 
             module.exports = isFunction(module.factory)
                              ?
+
                              module.factory.apply(null, args)
                              :
                              module.factory;
@@ -428,10 +425,8 @@ var define, require;
             append2Frag(name, url, requireId, index);
         }
 
-        setTimeout(function(){
             HEAD.appendChild(SCRIPTFRAG);
             removeScriptInFrag();
-        }, 0);
     }
 
     function append2Frag(moduleName, modulePath, requireId, index){
@@ -484,10 +479,8 @@ var define, require;
             append2Frag(name, url, requireId, index);
         }
 
-        setTimeout(function(){
-            HEAD.appendChild(SCRIPTFRAG);
-            removeScriptInFrag();
-        }, 0);
+        HEAD.appendChild(SCRIPTFRAG);
+        removeScriptInFrag();
 
 
         if(!moduleNames.length){
