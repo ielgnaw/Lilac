@@ -181,6 +181,9 @@ var define, require;
             name = parseUrl(name, absolutePath).replace(/\.js$/, '');
         }
 
+        if(!name){
+            return;
+        }
 
         var curMod = moduleMap[name];
 
@@ -190,8 +193,6 @@ var define, require;
             curMod.factory = factory;
             curMod.status = MODULES_STATUS_DEFINED;
             curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
-        }else{
-            return;
         }
 
 
@@ -273,7 +274,6 @@ var define, require;
 
             module.exports = isFunction(module.factory)
                              ?
-
                              module.factory.apply(null, args)
                              :
                              module.factory;
@@ -358,6 +358,9 @@ var define, require;
                 }
                 moduleUrls.push(moduleUrl);
                 moduleNames.push(tmpName);
+
+                // 给当前模块绑定 moduleComplete 事件
+                register(moduleMap[tmpName], 'moduleComplete', moduleComplete);
             }
         }
 
@@ -414,22 +417,30 @@ var define, require;
         load(requireId);
     }
 
+    function moduleComplete(){
+        console.log('moduleComplete');
+    }
+
     function load(requireId){
         var curRequireData  = requireMap[requireId],
             moduleUrls      = curRequireData.moduleUrls,
             moduleNames     = curRequireData.moduleNames,
-            len             = moduleUrls.length;
+            len             = moduleUrls.length,
             index           = len - 1;
 
         for(var url, name; name = moduleNames[index], url = moduleUrls[index]; index--){
-            append2Frag(name, url, requireId, index);
+            if(index == 0){
+                append2Frag(name, url, requireId, true);
+            }else{
+                append2Frag(name, url, requireId, false);
+            }
         }
 
-            HEAD.appendChild(SCRIPTFRAG);
-            removeScriptInFrag();
+        HEAD.appendChild(SCRIPTFRAG);
+        removeScriptInFrag();
     }
 
-    function append2Frag(moduleName, modulePath, requireId, index){
+    function append2Frag(moduleName, modulePath, requireId, isLast){
         var curMod = moduleMap[moduleName];
         curMod.status = MODULES_STATUS_LOADING;
         curMod.requireId = requireId;
@@ -451,7 +462,8 @@ var define, require;
             if (typeof el.readyState == 'undefined'
                     || (/loaded|complete/.test(el.readyState))) {
                 el.onload = el.onreadystatechange = null;
-                if(index == 0){
+                el = null;
+                if(isLast){
                     loadComplete(requireId);
                 }
             }
@@ -475,13 +487,19 @@ var define, require;
             index               = moduleUrls.length - 1,
             isAllLoad           = true;
 
+
         for(var name, url; name = moduleNames[index], url = moduleUrls[index]; index--){
-            append2Frag(name, url, requireId, index);
+            if(!moduleMap[name] || moduleMap[name].status != MODULES_STATUS_LOADING){
+                if(index == 0){
+                    append2Frag(name, url, requireId, true);
+                }else{
+                    append2Frag(name, url, requireId, false);
+                }
+            }
         }
 
         HEAD.appendChild(SCRIPTFRAG);
         removeScriptInFrag();
-
 
         if(!moduleNames.length){
             handleAnalyseModule(analyseModuleList);
