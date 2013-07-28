@@ -69,7 +69,10 @@ var define, require;
          * 记录调用require
          * @type {Object}
          */
-        requireMap = {};
+        requireMap = {},
+
+        currentlyAddingScriptFrag;
+
 
     /**
      * 获取当前运行脚本的文件的名称，用于获取匿名模块的模块名
@@ -78,6 +81,18 @@ var define, require;
      * @see http://www.cnblogs.com/rubylouvre/archive/2013/01/23/2872618.html
      */
     function getCurrentScript() {
+        if(currentlyAddingScriptFrag){
+            return currentlyAddingScriptFrag.getAttribute('src');
+        }
+
+        var scripts = HEAD.getElementsByTagName("script");
+        for (var i = 0, script; script = scripts[i++];) {
+            if (script.readyState === "interactive") {
+                return script.src;
+            }
+        }
+
+
         // 取得正在解析的script节点
         if (DOC.currentScript) { //firefox 4+
             return DOC.currentScript.src;
@@ -101,13 +116,6 @@ var define, require;
             stack = stack[0] == "(" ? stack.slice(1, -1) : stack; //.replace(/\s/, '');
             //去掉行号与或许存在的出错字符起始位置
             return stack.replace(/(:\d+)?:\d+$/i, "");
-        }
-
-        var scripts = HEAD.getElementsByTagName("script");
-        for (var i = 0, script; script = scripts[i++];) {
-            if (script.readyState === "interactive") {
-                return script.src;
-            }
         }
     }
 
@@ -181,10 +189,6 @@ var define, require;
             name = parseUrl(name, absolutePath).replace(/\.js$/, '');
         }
 
-        if(!name){
-            return;
-        }
-
         var curMod = moduleMap[name];
 
         if(curMod){
@@ -194,6 +198,9 @@ var define, require;
             curMod.status = MODULES_STATUS_DEFINED;
             curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
         }
+        // else{
+        //     return;
+        // }
 
 
         var requireId       = curMod.requireId,
@@ -360,7 +367,7 @@ var define, require;
                 moduleNames.push(tmpName);
 
                 // 给当前模块绑定 moduleComplete 事件
-                register(moduleMap[tmpName], 'moduleComplete', moduleComplete);
+                // register(moduleMap[tmpName], 'moduleComplete', moduleComplete);
             }
         }
 
@@ -417,9 +424,9 @@ var define, require;
         load(requireId);
     }
 
-    function moduleComplete(){
-        console.log('moduleComplete');
-    }
+    // function moduleComplete(){
+    //     console.log('moduleComplete');
+    // }
 
     function load(requireId){
         var curRequireData  = requireMap[requireId],
@@ -448,6 +455,7 @@ var define, require;
         el.type = 'text/javascript';
         el.src = modulePath;
         el.async = true;
+        el.defer = false;
         el.setAttribute('module-indentity', moduleName);
         el.onerror = error;
         if (el.readyState) {
@@ -456,7 +464,10 @@ var define, require;
         else {
             el.onload = process;
         }
+
+        currentlyAddingScriptFrag = el;
         SCRIPTFRAG.appendChild(el);
+        currentlyAddingScriptFrag = null;
 
         function process(e){
             if (typeof el.readyState == 'undefined'
