@@ -20,6 +20,7 @@
 <script type="text/javascript">
     require.config.baseUrl = './';
     window.onload = function(){
+
         var $ = function(id){
             return typeof id == 'string' ? document.getElementById(id) : id;
         }
@@ -80,10 +81,10 @@
 
 
         $('a').onclick = function(){
-            require(['moduleA/a','../../moduleD/d'], function(){
-            // require(['moduleC/c', '../moduleD/d'], function(a,d){
-            // require(['../moduleD/d'], function(d){
-            // require(['moduleB/b'], function(b){
+            // require(['moduleA/a','../../moduleD/d'], function(){
+            // require(['moduleB/b', '../../moduleD/d'], function(a,d){
+            // require(['moduleD/d'], function(d){
+            require(['moduleA/a', 'moduleD/d'], function(b){
             // require(['moduleA/a'], function(a){
             // require(['moduleC/c'], function(){
                 console.log('require moduleA/a', arguments, arguments.length);

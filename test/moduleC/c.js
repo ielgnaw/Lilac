@@ -1,4 +1,4 @@
-define(['../../moduleD/d'], function(d){
+define(['moduleD/d'], function(d){
     console.log('ccccc', arguments);
     return {
         c: 'c'
