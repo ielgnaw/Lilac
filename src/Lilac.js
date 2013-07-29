@@ -25,35 +25,34 @@ var define, require;
         moduleMap = {},
 
         /**
-         * 刚刚require时
-         * @type {Number}
+         * 模块初始状态
+         * @type {String}
          */
         MODULES_STATUS_UNDEFINE = 'undefine',
 
+
+        /**
+         * 模块 define 的状态
+         * @type {String}
+         */
         MODULES_STATUS_DEFINED = 'defined',
 
         /**
          * 模块正在加载
-         * @type {Number}
+         * @type {String}
          */
         MODULES_STATUS_LOADING = 'loading',
 
         /**
-         * 模块加载完毕，即加载模块js文件执行define时
-         * @type {Number}
-         */
-        MODULES_STATUS_LOADED = 'loaded',
-
-        /**
-         * 解析模块，解析并加载模块的依赖，在加载依赖模块时，
-         * 当前模块的状态是不变的，状态变的模块是依赖的那个模块
-         * @type {Number}
+         * 模块解析的状态
+         * 解析当前模块的依赖的时候，当前模块的状态值
+         * @type {String}
          */
         MODULES_STATUS_ANALYSE = 'analyse',
 
         /**
-         * 模块加载并解析完毕
-         * @type {Number}
+         * 模块加载并解析完毕并输出exports
+         * @type {String}
          */
         MODULES_STATUS_SUCCESS = 'success',
 
@@ -62,8 +61,7 @@ var define, require;
          * 然后根据这个绝对地址，去得到模块的地址
          * @type {String}
          */
-        absolutePath = '',
-
+        baseAbsolutePath = '',
 
         /**
          * 记录调用require
@@ -71,7 +69,16 @@ var define, require;
          */
         requireMap = {},
 
-        currentlyAddingScriptFrag;
+        /**
+         * @see  requirejs
+         */
+        currentlyAddingScript,
+
+        /**
+         * moduleId moduleUrl 映射
+         * @type {Object}
+         */
+        idUrlMap = {};
 
 
     /**
@@ -81,21 +88,20 @@ var define, require;
      * @see http://www.cnblogs.com/rubylouvre/archive/2013/01/23/2872618.html
      */
     function getCurrentScript() {
-        if(currentlyAddingScriptFrag){
-            return currentlyAddingScriptFrag.getAttribute('src');
+        if(currentlyAddingScript){
+            return currentlyAddingScript.getAttribute('module-indentity');
         }
 
         var scripts = HEAD.getElementsByTagName("script");
         for (var i = 0, script; script = scripts[i++];) {
             if (script.readyState === "interactive") {
-                return script.src;
+                return script.getAttribute('module-indentity');
             }
         }
 
-
         // 取得正在解析的script节点
         if (DOC.currentScript) { //firefox 4+
-            return DOC.currentScript.src;
+            return DOC.currentScript.getAttribute('module-indentity');
         }
 
         var stack;
@@ -106,7 +112,8 @@ var define, require;
             stack = e.stack;
             if (!stack && global.opera) {
                 //opera 9没有e.stack,但有e.Backtrace,但不能直接取得,需要对e对象转字符串进行抽取
-                stack = (String(e).match(/of linked script \S+/g) || []).join(" ");
+                stack = (String(e).match(/of linked script \S+/g) || [])
+                            .join(" ");
             }
         }
         if (stack) {
@@ -136,13 +143,23 @@ var define, require;
             p1.pop();
         }
         if (url.charAt(0) == '/') {
-            return isHttp ? 'http://' + p1[0] + url : p1.join('/') + url;
+            return isHttp
+                    ?
+                    'http://' + p1[0] + url
+                    :
+                     p1.join('/') + url;
         }
         if (!/^\.\.\//.test(url)) {
             if (/^\.\//.test(url)) {
-                return (isHttp ? 'http://' : '') + p1.join('/') + '/' + url.replace(/\.\//g, '');
+                return (isHttp ? 'http://' : '')
+                        + p1.join('/')
+                        + '/'
+                        + url.replace(/\.\//g, '');
             }
-            return (isHttp ? 'http://' : '') + p1.join('/') + '/' + url;
+            return (isHttp ? 'http://' : '')
+                    + p1.join('/')
+                    + '/'
+                    + url;
         }
         var p2 = url.split('/');
         for (var i = 0, len = p2.length; i < len; i++) {
@@ -154,7 +171,10 @@ var define, require;
             }
         }
         p2.splice(0, i);
-        return (isHttp ? 'http://' : '') + p1.join('/') + '/' + p2.join('/').replace(/\.\.\//g, '');
+        return (isHttp ? 'http://' : '')
+                + p1.join('/')
+                + '/'
+                + p2.join('/').replace(/\.\.\//g, '');
     }
 
     function define() {
@@ -183,25 +203,30 @@ var define, require;
         }
 
         if(!name){
-            name = getCurrentScript();
-            name = (name && name.replace(/\.js$/, ''));
-        }else{
-            name = parseUrl(name, absolutePath).replace(/\.js$/, '');
+            var curScript = getCurrentScript();
+            for(var id in idUrlMap){
+                if(idUrlMap[id] == curScript || id == curScript){
+                    name = id;
+                    break;
+                }
+            }
         }
 
         var curMod = moduleMap[name];
 
-        if(curMod){
-            curMod.deps = deps;
-            curMod.realDeps = deepClone([], deps);
-            curMod.factory = factory;
-            curMod.status = MODULES_STATUS_DEFINED;
-            curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
+        if(!curMod){
+            throw new Error('[MODULE_NOTFOUND]: '
+                + 'module name '
+                + name
+                + ' is not found'
+            );
         }
-        // else{
-        //     return;
-        // }
 
+        curMod.deps = deps;
+        curMod.realDeps = deepClone([], deps);
+        curMod.factory = factory;
+        curMod.status = MODULES_STATUS_DEFINED;
+        curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
 
         var requireId       = curMod.requireId,
             curRequireData  = requireMap[requireId],
@@ -212,32 +237,23 @@ var define, require;
         if(!curMod.deps){
             curMod.exports = getExports(curMod.name);
             curMod.status  = MODULES_STATUS_SUCCESS;
-            for(var i = 0, name; name = moduleNames[i]; i++){
-                if(name == curMod.name){
-                    curRequireData.moduleNames = delArray(moduleNames, i);
-                    curRequireData.moduleUrls  = delArray(moduleUrls, i);
-                }
-            }
-            moduleNames = curRequireData.moduleNames;
-            moduleUrls  = curRequireData.moduleUrls;
         }else{
             curMod.status = MODULES_STATUS_ANALYSE;
-
             for(var i = 0, dep; dep = curMod.deps[i]; i++){
                 var depModuleUrl, depModuleName, depModule;
-
                 if(/^\.+|^\//.test(dep)){
-                    depModuleUrl  = parseUrl(dep, curMod.baseUrl)
-                                        .replace(/\.js$/, '') + '.js',
-                    depModuleName = depModuleUrl.replace(/\.js$/, ''),
+                    depModuleName = moduleId2Url(dep, curMod.baseUrl);
+                    depModuleUrl  = depModuleName + '.js';
                     depModule     = moduleMap[depModuleName];
+                    idUrlMap[depModuleName]
+                            = parseUrl(depModuleUrl, baseAbsolutePath);
                 }else{
-                    depModuleUrl  = parseUrl(dep, absolutePath)
-                                        .replace(/\.js$/, '') + '.js',
-                    depModuleName = depModuleUrl.replace(/\.js$/, ''),
+                    depModuleName = moduleId2Url(dep, curMod.baseUrl);
+                    depModuleUrl  = depModuleName + '.js';
                     depModule     = moduleMap[depModuleName];
+                    idUrlMap[depModuleName]
+                            = parseUrl(depModuleUrl, baseAbsolutePath);
                 }
-
                 if(!depModule){
                     curMod.realDeps.splice(i, 1);
                     curMod.realDeps.splice(i, 0, depModuleName);
@@ -249,18 +265,24 @@ var define, require;
                     }
                     moduleNames.unshift(depModuleName);
                     moduleUrls.unshift(depModuleUrl);
+
+                    register(
+                        depModule,
+                        'moudleLoadListener',
+                        moudleLoadListener
+                    );
                 }
             }
+
             curRequireData.analyseModuleList.push(curMod);
-            for(var i = 0, name; name = moduleNames[i]; i++){
-                if(name == curMod.name){
-                    curRequireData.moduleNames = delArray(moduleNames, i);
-                    curRequireData.moduleUrls = delArray(moduleUrls, i);
-                }
-            }
-            moduleNames = curRequireData.moduleNames;
-            moduleUrls  = curRequireData.moduleUrls;
         }
+
+        fire(curMod, {
+            type: 'moudleLoadListener',
+            data: {
+                curModule: curMod
+            }
+        });
     }
 
     function getExports(modName){
@@ -270,7 +292,7 @@ var define, require;
             var deps = module.realDeps;
             if(deps && deps.length){
                 for(var i = 0, dep; dep = deps[i]; i++){
-                    var tmpName = parseUrl(dep, absolutePath).replace(/\.js$/, '');
+                    var tmpName = moduleId2Url(dep, module.baseUrl);
                     if(moduleMap[tmpName].exports){
                         args.push(moduleMap[tmpName].exports);
                     }else{
@@ -278,7 +300,6 @@ var define, require;
                     }
                 }
             }
-
             module.exports = isFunction(module.factory)
                              ?
                              module.factory.apply(null, args)
@@ -288,55 +309,34 @@ var define, require;
         return module.exports;
     }
 
-    function parseModuleName(name){
-        var prefix    = [],
-            prefixStr = '',
-            dirs      = [],
-            idDir     = [],
-            oldId     = name;
-        if(/^\.\./.test(name)){
-            // 以 .. 开头
-            dirs = name.split('/');
-            for(var j = 0, dir; dir = dirs[j]; j++){
-                if(dir == '..'){
-                    prefix.push(dir);
-                }else if(dir != '.'){
-                    idDir.push(dir);
-                }
-            }
-            prefixStr = prefix.join('/');
-            if(prefixStr){
-                prefixStr = prefixStr + '/';
-            }
-            name = idDir.join('/');
-        }else if(/^\./.test(name)){
-            // 以 . 开头
-            dirs = name.split('/');
-            for(var j = 0, dir; dir = dirs[j]; j++){
-                if(dir == '.'){
-                    prefix.push(dir);
+    function moduleId2Url(id, parent){
+        var ret = '';
+        if(/^\.\.\//.test(id)){ // ../ 开头
+            var dirs = parent.replace(/\/$/, '').split('/');
+            var urlDirs = id.split('/');
+            var idDir = [];
+            for(var j = 0, urlDir; urlDir = urlDirs[j]; j++){
+                if(urlDir == '..'){
+                    dirs.pop();
                 }else{
-                    idDir.push(dir);
+                    idDir.push(urlDir);
                 }
             }
-            prefixStr = prefix.join('/');
-            if(prefixStr){
-                prefixStr = prefixStr + '/';
-            }
-            name = idDir.join('/');
-        }else if(/^\//.test(name)){
-            // 以 / 开头
-            prefixStr = name.charAt(0);
-            name = name.substring(1);
+            ret = dirs.join('/') + '/' + idDir.join('/');
+        }else if(/^\.\//.test(id)){ // ./ 开头
+            ret = parent.replace(/\/$/, '') + id.slice(1);
+        }else if(/^\//.test(id)){ // / 开头
+            ret = parent + id;
+        }else{
+            ret = id;
         }
-
-        return [name, prefixStr, oldId];
+        return ret;
     }
 
     function require(ids, callback){
-        // 先要得到相对于 config.baseUrl 的绝对地址，
-        // 然后根据这个绝对地址，去得到模块的地址
-        absolutePath = parseUrl(require.config.baseUrl);
+        // 得到相对于 config.baseUrl 的绝对地址
+        baseAbsolutePath = parseUrl(require.config.baseUrl);
+
         if(!isArray(ids)){
             ids = [ids];
         }
@@ -345,29 +345,30 @@ var define, require;
             moduleUrl   = '',
             moduleUrls  = [],
             moduleNames = [],
-            realName    = '',
-            tmp         = [],
             tmpName     = '';
 
+
         for(var i = 0, name; name = ids[i]; i++){
-            moduleUrl = parseUrl(name, absolutePath).replace(/\.js$/, '') + '.js';
-            tmpName   = moduleUrl.replace(/\.js$/, '');
-            tmp       = parseModuleName(name);
-            realName  = tmp[2];
-            if(!moduleMap[tmpName]){
+            tmpName = moduleId2Url(name, require.config.baseUrl);
+            moduleUrl = tmpName + '.js';
+            idUrlMap[tmpName] = parseUrl(moduleUrl, baseAbsolutePath);
+            if(!moduleMap[tmpName]){ // url 为 key
                 isAllLoaded = false;
                 moduleMap[tmpName] = {
-                    realName  : realName,
+                    realName  : name,
                     name      : tmpName,
-                    prefix    : tmp[1],
                     url       : moduleUrl,
+                    baseUrl   : require.config.baseUrl,
                     status    : MODULES_STATUS_UNDEFINE
                 }
                 moduleUrls.push(moduleUrl);
                 moduleNames.push(tmpName);
 
-                // 给当前模块绑定 moduleComplete 事件
-                // register(moduleMap[tmpName], 'moduleComplete', moduleComplete);
+                register(
+                    moduleMap[tmpName],
+                    'moudleLoadListener',
+                    moudleLoadListener
+                );
             }
         }
 
@@ -377,7 +378,7 @@ var define, require;
                 invalidRet = [];
 
             for(var i = 0, item; item = ids[i]; i++){
-                var tmpName = parseUrl(item, absolutePath).replace(/\.js$/, '');
+                var tmpName = moduleId2Url(item, require.config.baseUrl);
                 if(moduleMap[tmpName].status != MODULES_STATUS_SUCCESS){
                     isLoad = false;
                     invalidRet.push(moduleMap[tmpName]);
@@ -395,12 +396,11 @@ var define, require;
                         invalidRetStr += ' and ';
                     }
                 }
-                throw new Error('[MODULE_UNSUCCESS] '
+                throw new Error('[MODULE_UNSUCCESS]: '
                     + invalidRetStr
-                    + ' \'S STATUS IS UNSUCCESS'
+                    + ' \'s status is unsuccess'
                 );
             }
-
             return;
         }
 
@@ -415,18 +415,81 @@ var define, require;
             moduleUrls          : moduleUrls,
             callback            : callback,
             callbackArgs        : deepClone([], moduleNames),
+            moduleCount         : moduleUrls.length,
             analyseModuleList   : []
         };
 
         register(requireMap[requireId], 'loadSuccess', function(d){
             callback.apply(null, d.args);
         });
+
         load(requireId);
     }
 
-    // function moduleComplete(){
-    //     console.log('moduleComplete');
-    // }
+    function moudleLoadListener(d){
+        var curAnalyseMod = d.curModule;
+        var requireId = curAnalyseMod.requireId;
+        var curRequireData      = requireMap[requireId],
+            moduleUrls          = curRequireData.moduleUrls,
+            moduleNames         = curRequireData.moduleNames,
+            analyseModuleList   = curRequireData.analyseModuleList,
+            index               = moduleUrls.length - 1,
+            isAllLoad           = true;
+
+        curRequireData.moduleCount = moduleUrls.length;
+        while(curRequireData.moduleCount){
+            var url = moduleUrls.pop();
+            var name = moduleNames.pop();
+            curRequireData.moduleCount--;
+            append2Frag(name, url, requireId);
+        }
+
+        HEAD.appendChild(SCRIPTFRAG);
+        removeScriptInFrag();
+
+        if(!moduleNames.length){
+            handleAnalyseModule(analyseModuleList);
+            for(var i in moduleMap){
+                if(moduleMap[i].status != MODULES_STATUS_SUCCESS){
+                    isAllLoad = false;
+                }
+            }
+            // console.log(moduleMap,idUrlMap);
+
+            if(isAllLoad){
+                var args = [];
+                for(var i = 0, item; item = curRequireData.callbackArgs[i]; i++){
+                    args[args.length++] = moduleMap[item].exports;
+                }
+
+                fire(requireMap[requireId], {
+                    type: 'loadSuccess',
+                    data: {
+                        args: args
+                    }
+                });
+            }
+        }
+    }
+
+    function handleAnalyseModule(analyseModuleList){
+        var len = analyseModuleList.length;
+        for(var i = len - 1, analyseModule; analyseModule = analyseModuleList[i]; i--){
+            var isDepLoad = true;
+            var depLen = analyseModule.realDeps.length;
+            for(var j = 0, analyseModuleDep; analyseModuleDep = analyseModule.realDeps[j]; j++){
+                // var tmpName = parseUrl(analyseModuleDep, baseAbsolutePath).replace(/\.js$/, '');
+                var tmpName = moduleId2Url(analyseModuleDep,analyseModule.baseUrl);
+                if(moduleMap[tmpName].status != MODULES_STATUS_SUCCESS){
+                    isDepLoad = false;
+                }
+            }
+            if(isDepLoad){
+                analyseModule.status = MODULES_STATUS_SUCCESS;
+                analyseModule.exports = getExports(analyseModule.name);
+            }
+        }
+    }
 
     function load(requireId){
         var curRequireData  = requireMap[requireId],
@@ -435,16 +498,21 @@ var define, require;
             len             = moduleUrls.length,
             index           = len - 1;
 
-        for(var url, name; name = moduleNames[index], url = moduleUrls[index]; index--){
-            if(index == 0){
-                append2Frag(name, url, requireId, true);
-            }else{
-                append2Frag(name, url, requireId, false);
-            }
+        while(curRequireData.moduleCount){
+            // var url = moduleUrls[curRequireData.moduleCount - 1];
+            // var name = moduleNames[curRequireData.moduleCount - 1];
+            var url = moduleUrls.pop();
+            var name = moduleNames.pop();
+            curRequireData.moduleCount--;
+            append2Frag(name, url, requireId);
         }
 
         HEAD.appendChild(SCRIPTFRAG);
         removeScriptInFrag();
+
+        // for(var i = 0, l = SCRIPTFRAG.childNodes.length; i < l; i++){
+        //     console.log(SCRIPTFRAG.childNodes[i].getAttribute('src'));
+        // }
     }
 
     function append2Frag(moduleName, modulePath, requireId, isLast){
@@ -465,18 +533,15 @@ var define, require;
             el.onload = process;
         }
 
-        currentlyAddingScriptFrag = el;
+        currentlyAddingScript = el;
         SCRIPTFRAG.appendChild(el);
-        currentlyAddingScriptFrag = null;
+        currentlyAddingScript = null;
 
         function process(e){
             if (typeof el.readyState == 'undefined'
                     || (/loaded|complete/.test(el.readyState))) {
                 el.onload = el.onreadystatechange = null;
                 el = null;
-                if(isLast){
-                    loadComplete(requireId);
-                }
             }
         }
         //TODO: IE不支持onerror，加载一个不存在脚本怎么处理
@@ -488,64 +553,6 @@ var define, require;
             });
             throw new Error('加载 ' + moduleName + ' 模块错误，' + moduleName + '的url为：'+ modulePath);
         }
-    }
-
-    function loadComplete(requireId){
-        var curRequireData      = requireMap[requireId],
-            moduleUrls          = curRequireData.moduleUrls,
-            moduleNames         = curRequireData.moduleNames,
-            analyseModuleList   = curRequireData.analyseModuleList,
-            index               = moduleUrls.length - 1,
-            isAllLoad           = true;
-
-
-        for(var name, url; name = moduleNames[index], url = moduleUrls[index]; index--){
-            if(!moduleMap[name] || moduleMap[name].status != MODULES_STATUS_LOADING){
-                if(index == 0){
-                    append2Frag(name, url, requireId, true);
-                }else{
-                    append2Frag(name, url, requireId, false);
-                }
-            }
-        }
-
-        HEAD.appendChild(SCRIPTFRAG);
-        removeScriptInFrag();
-
-        if(!moduleNames.length){
-            handleAnalyseModule(analyseModuleList);
-            var args = [];
-            for(var i = 0, item; item = curRequireData.callbackArgs[i]; i++){
-                args[args.length++] = moduleMap[item].exports;
-            }
-
-            fire(requireMap[requireId], {
-                type: 'loadSuccess',
-                data: {
-                    args: args
-                }
-            });
-        }
-    }
-
-    function handleAnalyseModule(analyseModuleList){
-        var len = analyseModuleList.length;
-        for(var i = len - 1, analyseModule; analyseModule = analyseModuleList[i]; i--){
-            var isDepLoad = true;
-            var depLen = analyseModule.realDeps.length;
-            for(var j = 0, analyseModuleDep; analyseModuleDep = analyseModule.realDeps[j]; j++){
-                var tmpName = parseUrl(analyseModuleDep, absolutePath).replace(/\.js$/, '');
-                if(moduleMap[tmpName].status != MODULES_STATUS_SUCCESS){
-                    isDepLoad = false;
-                }
-            }
-            if(isDepLoad){
-                analyseModule.status = MODULES_STATUS_SUCCESS;
-                analyseModule.exports = getExports(analyseModule.name);
-            }
-        }
-
-        // console.log(moduleMap);
     }
 
     function removeScriptInFrag(moduleIndentity){
@@ -562,14 +569,6 @@ var define, require;
                     SCRIPTFRAG.removeChild(curScriptFrag);
                 }
             }
-        }
-    }
-
-    function delArray(arr, index){
-        if(isNaN(index) || index < 0){
-            return arr;
-        }else{
-            return arr.slice(0, index).concat(arr.slice(index + 1, arr.length));
         }
     }
 
