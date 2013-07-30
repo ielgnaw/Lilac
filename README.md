@@ -9,5 +9,18 @@ test目录包含了一些自己写的测试用例，目前覆盖面不是很全�
 
 `http://localhost/test/index.html`
 
+也可以直接运行 `test/index.html`
 
-**注意**：运行自己的测试用例需要部署在web服务中，不能直接点击html文件以file协议访问！
+---
+
+**TODO:**
+
+1. 相互依赖模块的处理
+
+2. 加载插件、资源
+
+3. 提供 Simplified CommonJS Wrapper (CJS) 支持
+
+4. 打包构建工具
+
+
