@@ -19,17 +19,10 @@ var define, require;
         OBJ_EVT_KEY = '__objEvtKey__',
 
         /**
-         * 存储模块信息的共享变量
-         * @type {Object}
-         */
-        moduleMap = {},
-
-        /**
          * 模块初始状态
          * @type {String}
          */
         MODULES_STATUS_UNDEFINE = 'undefine',
-
 
         /**
          * 模块 define 的状态
@@ -57,11 +50,72 @@ var define, require;
         MODULES_STATUS_SUCCESS = 'success',
 
         /**
+         * 模块加载失败，存在循环依赖
+         * @type {String}
+         */
+        MODULE_STATUS_FAIL_CIRCLE = 'circle',
+
+        /**
+         * @see  requirejs
+         */
+        currentlyAddingScript,
+
+        REG = {
+            /**
+             * js 文件后缀
+             * @type {RegExp}
+             */
+            SUFFIX_JS : /(\.js)$/,
+
+            /**
+             * "./" 开头的模块前缀
+             * @type {RegExp}
+             */
+            PREFIX_1DOT : /^\.\//,
+
+            /**
+             * "../" 开头的模块前缀
+             * @type {RegExp}
+             */
+            PREFIX_2DOT : /^\.\.\//,
+
+            /**
+             * "/" 开头的模块前缀
+             * @type {RegExp}
+             */
+            PREFIX_SLASH : /^\//,
+
+            /**
+             * 包含URL协议
+             * @type {RegExp}
+             */
+            URI_PROTOCOL: /^(https:\/\/|http:\/\/|file:\/\/)/,
+
+            /**
+             * 相对路径前缀
+             * @type {RegExp}
+             */
+            PREFIX_RELATIVE: /^\.+\/|^\//
+        },
+
+        /**
          * 先要得到相对于 config.baseUrl 的绝对地址，
          * 然后根据这个绝对地址，去得到模块的地址
          * @type {String}
          */
         baseAbsolutePath = '',
+
+        /**
+         * moduleId moduleUrl 映射
+         * @type {Object}
+         */
+        idUrlMap = {},
+
+        /**
+         * 存储模块信息的共享变量
+         * @type {Object}
+         */
+        moduleMap = {},
 
         /**
          * 记录调用require
@@ -70,16 +124,499 @@ var define, require;
         requireMap = {},
 
         /**
-         * @see  requirejs
-         */
-        currentlyAddingScript,
-
-        /**
-         * moduleId moduleUrl 映射
+         * 具有 localRequireDep 或者 Dep的 module，
+         * 要鞥 localRequireDep 或者 Dep 加载完后再加载 module
          * @type {Object}
          */
-        idUrlMap = {};
+        delayLoadModuleMap = {},
 
+        /**
+         * 错误的标志位
+         * @type {Boolean}
+         */
+        ERRORFLAG = false;
+
+    /**
+     * fix ie version < 9
+     * Array.prototype.indexOf
+     */
+    if (!Array.prototype.indexOf) {
+        Array.prototype.indexOf = function (value) {
+            var length = this.length;
+            if (!length) {
+                return -1;
+            }
+            var i = arguments[1] || 0;
+            if (i >= length) {
+                return -1;
+            }
+            if (i < 0) {
+                i += length;
+            }
+            for (; i < length; i++) {
+                if (!Object.prototype.hasOwnProperty.call(this, i)) {
+                    continue;
+                }
+                if (value === this[i]) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+    }
+
+    /**
+     * 从 SCRIPTFRAG 中移除 script 标签
+     */
+    function removeScriptInFrag(moduleIndentity) {
+        var i = SCRIPTFRAG.childNodes.length - 1, curScriptFrag;
+        if (!moduleIndentity) {
+            // SCRIPTFRAG全部append到head上后清空 SCRIPTFRAG
+            for ( ; curScriptFrag = SCRIPTFRAG.childNodes[i]; i--) {
+                HEAD.removeChild(curScriptFrag);
+            }
+        }
+        else {
+            // 移除指定的那个
+            for ( ; curScriptFrag = SCRIPTFRAG.childNodes[i]; i--) {
+                if (
+                    curScriptFrag.getAttribute('module-indentity')
+                    ===
+                    moduleIndentity
+                ) {
+                    SCRIPTFRAG.removeChild(curScriptFrag);
+                }
+            }
+        }
+    }
+
+    /**
+     * 得到 url 相对于 baseUrl 的绝对路径
+     * @param  {string} url     url
+     * @param  {string} baseUrl baseUrl
+     * @return {[type]}         [description]
+     */
+    function parseUrl(url, baseUrl) {
+        var pageHref = baseUrl || window.location.href,
+            isHttp   = pageHref.slice(0, 4) === 'http';
+        if (/^http:\/\//.test(url)) {
+            return url;
+        }
+        var p1 = pageHref.replace(/^http:\/\/|\?.*$|\/$/g, '').split("/");
+        if (p1.length > 1 && /\w+\.\w+$/.test(p1[p1.length - 1])) {
+            p1.pop();
+        }
+        if (url.charAt(0) === '/') {
+            return isHttp
+                    ?
+                    'http://' + p1[0] + url
+                    :
+                     p1.join('/') + url;
+        }
+        if (!/^\.\.\//.test(url)) {
+            if (/^\.\//.test(url)) {
+                return (isHttp ? 'http://' : '')
+                        + p1.join('/')
+                        + '/'
+                        + url.replace(/\.\//g, '');
+            }
+            return (isHttp ? 'http://' : '')
+                    + p1.join('/')
+                    + '/'
+                    + url;
+        }
+        var p2 = url.split('/');
+        for (var i = 0, len = p2.length; i < len; i++) {
+            if (p2[i] === '..' && p1.length > 1) {
+                p1.pop();
+            }
+            else {
+                break;
+            }
+        }
+        p2.splice(0, i);
+        return (isHttp ? 'http://' : '')
+                + p1.join('/')
+                + '/'
+                + p2.join('/').replace(/\.\.\//g, '');
+    }
+
+    /**
+     * 根据 moduleId 以及当前环境的 baseId 得到 moduleUrl
+     * @param  {string}     id
+     * @param  {string}     baseId
+     * @return {string}     moduleUrl
+     */
+    function normalizeModuleId(id, baseId) {
+        var dirs  = [],
+            idDir = [],
+            len   = 0,
+            val   = '',
+            tmp   = [],
+            ret   = {},
+            flag  = true,
+            sTmp  = '';
+
+        if (REG.URI_PROTOCOL.test(id) || REG.SUFFIX_JS.test(id)) {
+            var url = id.replace(REG.SUFFIX_JS, '');
+            for (var key in requireConf.paths) {
+                if (requireConf.paths[key] === id){
+                    id = key;
+                    url = requireConf.paths[key];
+                    break;
+                }
+            }
+            ret = {
+                id: id,
+                url: url
+            }
+        }
+        else {
+            if (REG.PREFIX_2DOT.test(id)) {
+                // ../ 开头
+                dirs  = baseId.replace(/\/$/, '').split('/');
+                idDir = id.split('/');
+                len   = idDir.length;
+                for (var i = 0; i < len; i++) {
+                    val = idDir[i];
+                    if(val === '..'){
+                        dirs.pop();
+                    }
+                    else {
+                        tmp.push(val);
+                    }
+                }
+                sTmp = dirs.join('/') + '/' + tmp.join('/');
+                ret = {
+                    id: sTmp.replace(REG.PREFIX_RELATIVE,''),
+                    url: sTmp
+                }
+            }
+            else if (REG.PREFIX_1DOT.test(id)) {
+                // ./ 开头
+                dirs  = baseId.replace(/\/$/, '').split('/');
+                idDir = id.split('/');
+                len   = idDir.length;
+                for (var i = 0; i < len; i++) {
+                    val = idDir[i];
+                    if (val === '.') {
+                        dirs.pop();
+                    }
+                    else {
+                        tmp.push(val);
+                    }
+                }
+                sTmp = baseId.replace(/\/$/, '') + '/' + tmp.join('/');
+                ret = {
+                    id: sTmp.replace(REG.PREFIX_RELATIVE,''),
+                    url: sTmp
+                }
+            }else if(REG.PREFIX_SLASH.test(id)){
+                // moduleId以"/"开头，/a/b/c
+                // 会避开 baseUrl+paths 规则，
+                // 直接将其加载为一个相对于当前HTML文档的脚本
+                id    = id.slice(1);
+                idDir = id.split('/');
+                len   = idDir.length;
+                for (var i = 0; i < len; i++) {
+                    val = idDir[i];
+                    tmp.push(val);
+                }
+                sTmp = '/' + tmp.join('/');
+                ret = {
+                    id: sTmp.replace(REG.PREFIX_RELATIVE,''),
+                    url: sTmp
+                }
+            }else{
+                // a/b/c，使用 baseUrl+paths 规则
+                idDir = id.split('/');
+                len   = idDir.length;
+                for (var i = 0; i < len; i++) {
+                    val = idDir[i];
+                    if (i === 0) {
+                        if (requireConf.paths.hasOwnProperty(val)) {
+                            // 检测paths是否包含URL协议和是否已"/"开头
+                            if(
+                                REG.URI_PROTOCOL.test(requireConf.paths[val])
+                                ||
+                                REG.PREFIX_SLASH.test(requireConf.paths[val])
+                            ) {
+                                flag = false;
+                            }
+                            tmp.push(requireConf.paths[val]);
+                        }
+                        else {
+                            tmp.push(val);
+                        }
+                    }
+                    else {
+                        tmp.push(val);
+                    }
+                }
+                if (flag) {
+                    sTmp = baseId.replace(/\/$/, '') + '/' + tmp.join('/');
+                    ret = {
+                        id: sTmp.replace(REG.PREFIX_RELATIVE,''),
+                        url: sTmp
+                    }
+                }
+                else {
+                    sTmp = tmp.join('/');
+                    if (REG.URI_PROTOCOL.test(sTmp)) {
+                        ret = {
+                            id: id,
+                            url: sTmp
+                        }
+                    }
+                    else {
+                        ret = {
+                            id: sTmp.replace(REG.PREFIX_RELATIVE,''),
+                            url: sTmp
+                        }
+                    }
+                }
+            }
+        }
+
+        // console.error(ret);
+        // console.warn(id, ret.replace(/^\.+\/|^\//,''));
+        return ret;
+        // return {
+        //     id: ret.replace(/^\.+\/|^\//,''),
+        //     url: ret
+        // };
+    }
+
+    /**
+     * 在 moduleMap 中检测模块是否存在
+     * 我认为 url 一致的模块，无论名字是否一致，它们都是相同的模块
+     * 名字不同可能由于相对路径不同而已
+     * @return {[type]}     [description]
+     */
+    function checkModuleByUrl(url) {
+        for (var i in moduleMap) {
+            if (moduleMap[i].url === url) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断 module 是否加载完毕，
+     * 如果加载完毕，会返回模块的exports
+     * 如果没有加载完毕，返回false
+     * @param  {Array} moduleIds 模块 id 集合
+     * @return {[type]}           [description]
+     */
+    function modulesIsSuccess(moduleIds) {
+        var normalizeObj = {};
+        if (isEmptyObject(moduleMap)) {
+            return false;
+        }
+        else {
+            var ret = [], mod, modNormalize;
+            for (var i = 0, len = moduleIds.length; i < len; i++) {
+                normalizeObj = normalizeModuleId(moduleIds[i], requireConf.baseUrl);
+
+                mod = moduleMap[moduleIds[i]];
+                modNormalize = moduleMap[normalizeObj.id];
+                if (
+                    (!mod || mod.status !== MODULES_STATUS_SUCCESS)
+                    &&
+                    (!modNormalize
+                        || modNormalize.status !== MODULES_STATUS_SUCCESS)
+                ) {
+                    return false;
+                }
+                else {
+                    ret.push(
+                        mod ? mod.exports : modNormalize.exports
+                    );
+                }
+            }
+            return ret;
+        }
+    }
+
+    function require() {
+        ERRORFLAG = false;
+        // 得到相对于 config.baseUrl 的绝对地址
+        baseAbsolutePath =
+            baseAbsolutePath
+                ?
+                baseAbsolutePath
+                :
+                parseUrl(requireConf.baseUrl);
+
+        var ids, callback = null, opts = {};
+        var params = Array.prototype.slice.call(arguments);
+        while (params.length) {
+            var param = params.shift();
+            var cls = Object.prototype.toString.call(param).slice(8, -1);
+            switch (cls) {
+                case 'String':
+                case 'Array':
+                    ids = param;
+                    break;
+                case 'Function':
+                    callback = param;
+                    break;
+                case 'Object':
+                    opts = param;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (!isArray(ids)) {
+            ids = [ids];
+        }
+
+        var ret = modulesIsSuccess(ids);
+
+        if (ret) {
+            if (callback) {
+                callback.apply(null, ret);
+                return;
+            }
+            else {
+                var localRequireExports = {};
+                if (ids.length === 1) {
+                    localRequireExports = moduleMap[ids].exports;
+                }
+                else {
+                    for (var j = 0, l = ids.length; j < l; j++) {
+                        localRequireExports[ids[j]] = moduleMap[ids[j]];
+                    }
+                }
+                return localRequireExports;
+            }
+        }
+
+        var requireId    = '',
+            moduleUrl    = '',
+            moduleId     = '',
+            moduleUrls   = [],
+            moduleIds    = [],
+            normalizeObj = {};
+
+
+        for (var i = 0, len = ids.length; i < len; i++) {
+            moduleId     = ids[i];
+            normalizeObj = normalizeModuleId(moduleId, requireConf.baseUrl);
+            moduleUrl    = normalizeObj.url + '.js';
+            if (!checkModuleByUrl(moduleUrl)) {
+                idUrlMap[moduleId]  = parseUrl(moduleUrl);
+                moduleMap[moduleId] = {
+                    id          : moduleId,
+                    normalizeId : normalizeObj.id,
+                    url         : moduleUrl,
+                    baseUrl     : requireConf.baseUrl,
+                    status      : MODULES_STATUS_UNDEFINE
+                }
+                moduleUrls.push(moduleUrl);
+                moduleIds.push(moduleId);
+
+                // 给每个module注册 moduleLoad事件
+                register(
+                    moduleMap[moduleId],
+                    'moduleLoad',
+                    moduleLoadListener
+                );
+            }
+        }
+
+        var requireId = ''
+            + 'Lilac_'
+            + new Date().getTime()
+            + Math.floor(Math.random() * 100 + 1)
+            + '_'
+            + ids.join('_');
+
+        requireMap[requireId] = {
+            moduleIds         : moduleIds,
+            moduleUrls        : moduleUrls,
+            callback          : callback,
+            callbackArgs      : deepClone([], moduleIds),
+            analyseModuleList : []
+        };
+
+        register(requireMap[requireId], 'requireSuccess', function(d){
+            callback.apply(null, d.args);
+        });
+
+        load(requireId);
+    }
+
+    /**
+     * 加载脚本
+     */
+    function load(requireId) {
+        var curRequireData  = requireMap[requireId],
+            moduleUrls      = curRequireData.moduleUrls,
+            moduleIds       = curRequireData.moduleIds;
+
+        while (moduleUrls.length) {
+            var url = moduleUrls.pop();
+            var id  = moduleIds.pop();
+            append2Frag(id, url, requireId);
+        }
+
+        HEAD.appendChild(SCRIPTFRAG);
+        removeScriptInFrag();
+    }
+
+    /**
+     * 添加 script 标签到 documentfrag 中
+     * @param  {string} moduleId  模块id
+     * @param  {string} moduleUrl 模块url
+     */
+    function append2Frag(moduleId, moduleUrl, requireId, func) {
+        var curMod       = moduleMap[moduleId];
+        curMod.status    = MODULES_STATUS_LOADING;
+        curMod.requireId = requireId;
+        var el           = DOC.createElement('script');
+        el.type          = 'text/javascript';
+        el.src           = moduleUrl;
+        el.async         = true;
+        el.defer         = false;
+        el.onerror       = error;
+        el.setAttribute('module-indentity', moduleId);
+        if (el.readyState) {
+            el.onreadystatechange = process;
+        }
+        else {
+            el.onload = process;
+        }
+
+        currentlyAddingScript = el;
+        SCRIPTFRAG.appendChild(el);
+        currentlyAddingScript = null;
+
+        function process(e) {
+            if (typeof el.readyState == 'undefined'
+                    || (/loaded|complete/.test(el.readyState))) {
+                el.onload = el.onreadystatechange = null;
+                el = null;
+                func && isFunction(func) && func.call();
+            }
+        }
+        //TODO: IE不支持onerror，加载一个不存在脚本怎么处理
+        function error() {
+            el.onerror = el.onload = null;
+            setTimeout(function (){
+                HEAD.removeChild(el);
+                el = null; // 处理旧式IE循环引用问题
+            });
+            ERRORFLAG = true;
+            throw new Error(''
+                + '加载 ' + moduleId + ' 模块错误，'
+                + moduleId + '的url为：'+ moduleUrl
+            );
+        }
+    }
 
     /**
      * 获取当前运行脚本的文件的名称，用于获取匿名模块的模块名
@@ -88,7 +625,7 @@ var define, require;
      * @see http://www.cnblogs.com/rubylouvre/archive/2013/01/23/2872618.html
      */
     function getCurrentScript() {
-        if(currentlyAddingScript){
+        if (currentlyAddingScript) {
             return currentlyAddingScript.getAttribute('module-indentity');
         }
 
@@ -127,66 +664,30 @@ var define, require;
     }
 
     /**
-     * 得到 url 相对于 baseUrl 的绝对路径
-     * @param  {string} url     url
-     * @param  {string} baseUrl baseUrl
-     * @return {[type]}         [description]
+     * 根据 normalizeId 获取 module
+     * @param  {[type]} normalizeId [description]
      */
-    function parseUrl(url, baseUrl) {
-        var pageHref = baseUrl || window.location.href;
-        var isHttp = pageHref.slice(0, 4) === 'http';
-        if (/^http:\/\//.test(url)) {
-            return url;
-        }
-        var p1 = pageHref.replace(/^http:\/\/|\?.*$|\/$/g, '').split("/");
-        if (p1.length > 1 && /\w+\.\w+$/.test(p1[p1.length - 1])) {
-            p1.pop();
-        }
-        if (url.charAt(0) == '/') {
-            return isHttp
-                    ?
-                    'http://' + p1[0] + url
-                    :
-                     p1.join('/') + url;
-        }
-        if (!/^\.\.\//.test(url)) {
-            if (/^\.\//.test(url)) {
-                return (isHttp ? 'http://' : '')
-                        + p1.join('/')
-                        + '/'
-                        + url.replace(/\.\//g, '');
-            }
-            return (isHttp ? 'http://' : '')
-                    + p1.join('/')
-                    + '/'
-                    + url;
-        }
-        var p2 = url.split('/');
-        for (var i = 0, len = p2.length; i < len; i++) {
-            if (p2[i] == '..' && p1.length > 1) {
-                p1.pop();
-            }
-            else {
-                break;
+    function findModuleByNormalizeId(normalizeId){
+        for (var key in moduleMap){
+            if (moduleMap[key].normalizeId === normalizeId){
+                return moduleMap[key];
             }
         }
-        p2.splice(0, i);
-        return (isHttp ? 'http://' : '')
-                + p1.join('/')
-                + '/'
-                + p2.join('/').replace(/\.\.\//g, '');
+        return null;
     }
 
     function define() {
-        var name, deps, factory,
-            urlPath;
+        if (ERRORFLAG) {
+            return;
+        }
+        var id, deps, factory;
         var params = Array.prototype.slice.call(arguments);
         while (params.length) {
             var param = params.shift();
             var cls = Object.prototype.toString.call(param).slice(8, -1);
             switch (cls) {
                 case 'String':
-                    name = param;
+                    id = param;
                     break;
                 case 'Object':
                     factory = param;
@@ -202,414 +703,348 @@ var define, require;
             }
         }
 
-        if(!name){
+        if (!id) {
             var curScript = getCurrentScript();
-            for(var id in idUrlMap){
-                if(idUrlMap[id] == curScript || id == curScript){
-                    name = id;
+            for (var key in idUrlMap) {
+                if (key === curScript || idUrlMap[key] === curScript) {
+                    id = key;
                     break;
                 }
             }
         }
 
-        var curMod = moduleMap[name];
+        /**
+         * define 这一块的逻辑有点混乱，日后改进
+         * 处理 combine 会有问题
+         * 暂时仅支持 一个文件定义一个模块
+         */
+        var curMod =
+            moduleMap[id]
+            ?
+            moduleMap[id]
+            :
+            findModuleByNormalizeId(id);
 
-        if(!curMod){
+
+        if (!curMod) {
+            // console.log(moduleMap, id, normalizeModuleId(id, requireConf.baseUrl));
+            // delete moduleMap[curMod.id];
+            ERRORFLAG = true;
             throw new Error('[MODULE_NOTFOUND]: '
-                + 'module name '
-                + name
+                + 'module id '
+                + id
                 + ' is not found'
             );
         }
 
-        curMod.deps = deps;
-        curMod.realDeps = deepClone([], deps);
+        curMod.deps    = deps;
         curMod.factory = factory;
-        curMod.status = MODULES_STATUS_DEFINED;
-        curMod.baseUrl = curMod.url.substring(0, curMod.url.lastIndexOf('/'))
+        curMod.status  = MODULES_STATUS_DEFINED;
 
-        var requireId       = curMod.requireId,
-            curRequireData  = requireMap[requireId],
-            moduleUrls      = curRequireData.moduleUrls,
-            moduleNames     = curRequireData.moduleNames;
-
-
-        if(!curMod.deps){
-            curMod.exports = getExports(curMod.name);
-            curMod.status  = MODULES_STATUS_SUCCESS;
-        }else{
-            curMod.status = MODULES_STATUS_ANALYSE;
-            for(var i = 0, dep; dep = curMod.deps[i]; i++){
-                var depModuleUrl, depModuleName, depModule;
-                if(/^\.+|^\//.test(dep)){
-                    depModuleName = moduleId2Url(dep, curMod.baseUrl);
-                    depModuleUrl  = depModuleName + '.js';
-                    depModule     = moduleMap[depModuleName];
-                    idUrlMap[depModuleName]
-                            = parseUrl(depModuleUrl, baseAbsolutePath);
-                }else{
-                    depModuleName = moduleId2Url(dep, curMod.baseUrl);
-                    depModuleUrl  = depModuleName + '.js';
-                    depModule     = moduleMap[depModuleName];
-                    idUrlMap[depModuleName]
-                            = parseUrl(depModuleUrl, baseAbsolutePath);
-                }
-                if(!depModule){
-                    curMod.realDeps.splice(i, 1);
-                    curMod.realDeps.splice(i, 0, depModuleName);
-
-                    depModule = moduleMap[depModuleName] = {
-                        name      : depModuleName,
-                        url       : depModuleUrl,
-                        status    : MODULES_STATUS_UNDEFINE
-                    }
-                    moduleNames.unshift(depModuleName);
-                    moduleUrls.unshift(depModuleUrl);
-
-                    register(
-                        depModule,
-                        'moudleLoadListener',
-                        moudleLoadListener
-                    );
-                }
-            }
-
-            curRequireData.analyseModuleList.push(curMod);
+        if (REG.URI_PROTOCOL.test(curMod.url)) {
+            curMod.baseUrl = requireConf.baseUrl;
+        }
+        else {
+            curMod.baseUrl =
+                curMod.url.substring(0, curMod.url.lastIndexOf('/'));
         }
 
-        fire(curMod, {
-            type: 'moudleLoadListener',
-            data: {
-                curModule: curMod
-            }
-        });
-    }
-
-    function getExports(modName){
-        var module = moduleMap[modName];
-        if (!module.exports) {
-            var args = [];
-            var deps = module.realDeps;
-            if(deps && deps.length){
-                for(var i = 0, dep; dep = deps[i]; i++){
-                    var tmpName = moduleId2Url(dep, module.baseUrl);
-                    if(moduleMap[tmpName].exports){
-                        args.push(moduleMap[tmpName].exports);
-                    }else{
-                        args.push(getExports(tmpName));
-                    }
-                }
-            }
-            module.exports = isFunction(module.factory)
-                             ?
-                             module.factory.apply(null, args)
-                             :
-                             module.factory;
-        }
-        return module.exports;
-    }
-
-    function moduleId2Url(id, parent){
-        var ret = '';
-        if(/^\.\.\//.test(id)){ // ../ 开头
-            var dirs = parent.replace(/\/$/, '').split('/');
-            var urlDirs = id.split('/');
-            var idDir = [];
-            for(var j = 0, urlDir; urlDir = urlDirs[j]; j++){
-                if(urlDir == '..'){
-                    dirs.pop();
-                }else{
-                    idDir.push(urlDir);
-                }
-            }
-            ret = dirs.join('/') + '/' + idDir.join('/');
-        }else if(/^\.\//.test(id)){ // ./ 开头
-            ret = parent.replace(/\/$/, '') + id.slice(1);
-        }else if(/^\//.test(id)){ // / 开头
-            ret = parent + id;
-        }else{
-            ret = id;
-        }
-        return ret;
-    }
-
-    function require(ids, callback){
-        // 得到相对于 config.baseUrl 的绝对地址
-        baseAbsolutePath = parseUrl(require.config.baseUrl);
-
-        if(!isArray(ids)){
-            ids = [ids];
+        if (isFunction(factory)) {
+            curMod.realDeps = getDependencies(factory.toString());
         }
 
-        var isAllLoaded = true,
-            moduleUrl   = '',
-            moduleUrls  = [],
-            moduleNames = [],
-            tmpName     = '';
+        // console.error(curMod);
+        // debugger
 
-
-        for(var i = 0, name; name = ids[i]; i++){
-            tmpName = moduleId2Url(name, require.config.baseUrl);
-            moduleUrl = tmpName + '.js';
-            idUrlMap[tmpName] = parseUrl(moduleUrl, baseAbsolutePath);
-            if(!moduleMap[tmpName]){ // url 为 key
-                isAllLoaded = false;
-                moduleMap[tmpName] = {
-                    realName  : name,
-                    name      : tmpName,
-                    url       : moduleUrl,
-                    baseUrl   : require.config.baseUrl,
-                    status    : MODULES_STATUS_UNDEFINE
-                }
-                moduleUrls.push(moduleUrl);
-                moduleNames.push(tmpName);
-
-                register(
-                    moduleMap[tmpName],
-                    'moudleLoadListener',
-                    moudleLoadListener
-                );
+        // 现在的处理是，循环依赖会抛出错误，
+        // 日后会改善对循环依赖的处理
+        if (
+            checkCircle(curMod.id, curMod.deps)
+            ||
+            checkCircle(curMod.id, curMod.realDeps)
+        ) {
+            delete moduleMap[curMod.id];
+            ERRORFLAG = true;
+            for (var i = 0; i < curMod.deps.length; i++){
+                delete moduleMap[curMod.deps[i]];
             }
+            for (var i = 0; i < curMod.realDeps.length; i++){
+                delete moduleMap[curMod.realDeps[i]];
+            }
+            throw new Error('[MODULE_CIRCLE]: '
+                + 'The Module '
+                + curMod.id
+                + ' occur circle dependencies'
+            );
         }
 
-        if(isAllLoaded){
-            var args       = [],
-                isLoad     = true,
-                invalidRet = [];
-
-            for(var i = 0, item; item = ids[i]; i++){
-                var tmpName = moduleId2Url(item, require.config.baseUrl);
-                if(moduleMap[tmpName].status != MODULES_STATUS_SUCCESS){
-                    isLoad = false;
-                    invalidRet.push(moduleMap[tmpName]);
-                }else{
-                    args[args.length++] = moduleMap[tmpName].exports;
-                }
-            }
-            if(isLoad){
-                callback.apply(null, args);
-            }else{
-                var invalidRetStr = '';
-                for(var i = 0, invalid; invalid = invalidRet[i]; i++){
-                    invalidRetStr += invalid.realName;
-                    if(i != invalidRet.length - 1){
-                        invalidRetStr += ' and ';
-                    }
-                }
-                throw new Error('[MODULE_UNSUCCESS]: '
-                    + invalidRetStr
-                    + ' \'s status is unsuccess'
-                );
-            }
-            return;
-        }
-
-        var requireId = new Date().getTime()
-            + '_'
-            + Math.floor(Math.random() * 100 + 1)
-            + '_'
-            + ids.join('_');
-
-        requireMap[requireId] = {
-            moduleNames         : moduleNames,
-            moduleUrls          : moduleUrls,
-            callback            : callback,
-            callbackArgs        : deepClone([], moduleNames),
-            moduleCount         : moduleUrls.length,
-            analyseModuleList   : []
-        };
-
-        register(requireMap[requireId], 'loadSuccess', function(d){
-            callback.apply(null, d.args);
-        });
-
-        load(requireId);
-    }
-
-    function moudleLoadListener(d){
-        var curAnalyseMod = d.curModule;
-        var requireId = curAnalyseMod.requireId;
-        var curRequireData      = requireMap[requireId],
-            moduleUrls          = curRequireData.moduleUrls,
-            moduleNames         = curRequireData.moduleNames,
-            analyseModuleList   = curRequireData.analyseModuleList,
-            index               = moduleUrls.length - 1,
-            isAllLoad           = true;
-
-        curRequireData.moduleCount = moduleUrls.length;
-        while(curRequireData.moduleCount){
-            var url = moduleUrls.pop();
-            var name = moduleNames.pop();
-            curRequireData.moduleCount--;
-            append2Frag(name, url, requireId);
-        }
-
-        HEAD.appendChild(SCRIPTFRAG);
-        removeScriptInFrag();
-
-        if(!moduleNames.length){
-            handleAnalyseModule(analyseModuleList);
-            for(var i in moduleMap){
-                if(moduleMap[i].status != MODULES_STATUS_SUCCESS){
-                    isAllLoad = false;
-                }
-            }
-            // console.log(moduleMap,idUrlMap);
-
-            if(isAllLoad){
-                var args = [];
-                for(var i = 0, item; item = curRequireData.callbackArgs[i]; i++){
-                    args[args.length++] = moduleMap[item].exports;
-                }
-
-                fire(requireMap[requireId], {
-                    type: 'loadSuccess',
+        if (!curMod.deps || !curMod.deps.length) {
+            if (!curMod.realDeps || !curMod.realDeps.length) {
+                curMod.exports = getExports(curMod);
+                fire(curMod, {
+                    type: 'moduleLoad',
                     data: {
-                        args: args
+                        curModule: curMod
                     }
                 });
             }
+            else {
+                curMod.exports = getExports(curMod);
+            }
+        }
+        else {
+            if (!curMod.realDeps || !curMod.realDeps.length) {
+                curMod.realDeps = curMod.deps;
+            }
+            else {
+                curMod.realDeps =
+                    curMod.realDeps.concat(curMod.deps);
+            }
+            curMod.exports = getExports(curMod);
         }
     }
 
-    function handleAnalyseModule(analyseModuleList){
-        var len = analyseModuleList.length;
-        for(var i = len - 1, analyseModule; analyseModule = analyseModuleList[i]; i--){
-            var isDepLoad = true;
-            var depLen = analyseModule.realDeps.length;
-            for(var j = 0, analyseModuleDep; analyseModuleDep = analyseModule.realDeps[j]; j++){
-                // var tmpName = parseUrl(analyseModuleDep, baseAbsolutePath).replace(/\.js$/, '');
-                var tmpName = moduleId2Url(analyseModuleDep,analyseModule.baseUrl);
-                if(moduleMap[tmpName].status != MODULES_STATUS_SUCCESS){
-                    isDepLoad = false;
+    /**
+     * 获取模块的 exports
+     * @param  {[type]} module  [description]
+     */
+    function getExports(module) {
+        var factory   = module.factory,
+            requireId = module.requireId,
+            realDeps  = module.realDeps;
+        if (realDeps && realDeps.length) {
+            delayLoadModuleMap[module.id] = module;
+            for (var i = 0, len = realDeps.length; i < len; i++){
+                (function(index, requireId, curMod){
+                    setTimeout(function() {
+                        handleRealDeps(
+                            realDeps[index],
+                            requireId,
+                            curMod
+                        );
+                    }, 0);
+                })(i, requireId, module);
+            }
+        }
+        else {
+            if (!module.exports) {
+                // var args = [require],
+                var args = [],
+                    deps = module.deps;
+                if (deps && deps.length) {
+                    var tmpName = '', dep;
+                    for (var i = 0; i < deps.length; i++) {
+                        dep = deps[i];
+                        if (moduleMap[dep].exports) {
+                            args.push(moduleMap[dep].exports);
+                        }
+                        else {
+                            args.push(getExports(dep));
+                        }
+                    }
+                }
+                args.push(require); // require 为factory的最后一个参数
+                module.exports = isFunction(module.factory)
+                                 ?
+                                 module.factory.apply(null, args)
+                                 :
+                                 module.factory;
+                module.status  = MODULES_STATUS_SUCCESS;
+            }
+            return module.exports;
+        }
+    }
+
+    /**
+     * 处理 realDeps
+     */
+    function handleRealDeps(realDep, requireId, curModule) {
+        var realDepUrl   = '',
+            normalizeObj = {};
+        if (REG.PREFIX_RELATIVE.test(realDep)) {
+            normalizeObj = normalizeModuleId(realDep, curModule.baseUrl);
+            realDepUrl = normalizeObj.url + '.js';
+        }
+        else {
+            normalizeObj = normalizeModuleId(realDep, requireConf.baseUrl);
+            realDepUrl = normalizeObj.url + '.js';
+        }
+        if (!checkModuleByUrl(realDepUrl)) {
+            idUrlMap[realDep]  = parseUrl(realDepUrl);
+            moduleMap[realDep] = {
+                id          : realDep,
+                normalizeId : normalizeObj.id,
+                url         : realDepUrl,
+                baseUrl     : requireConf.baseUrl,
+                status      : MODULES_STATUS_UNDEFINE
+            }
+            register(
+                moduleMap[realDep],
+                'moduleLoad',
+                moduleLoadListener
+            );
+            append2Frag(
+                realDep,
+                realDepUrl,
+                requireId,
+                checkDelayLoadModule
+            );
+
+            HEAD.appendChild(SCRIPTFRAG);
+            removeScriptInFrag();
+        }
+        else {
+            checkDelayLoadModule();
+        }
+    }
+
+    /**
+     * 检测具有 realDep 的 module 中的 realDep 是否加载成功
+     * 如果加载成功则获取 module 的 exports，并触发 module 的 moduleLoad 事件
+     * @return {[type]} [description]
+     */
+    function checkDelayLoadModule(){
+        var normalizeObj = {};
+        for (var i in delayLoadModuleMap) {
+            var mod = delayLoadModuleMap[i], localRequireLoaded = true, tmp;
+            for (
+                var j = 0, len = mod.realDeps.length;
+                j < len;
+                j++
+            ) {
+                if (REG.PREFIX_RELATIVE.test(mod.realDeps[j])) {
+                    normalizeObj = normalizeModuleId(mod.realDeps[j], mod.baseUrl);
+                    tmp = findModuleByNormalizeId(normalizeObj.id);
+                    if (!tmp || tmp.status !== MODULES_STATUS_SUCCESS) {
+                        localRequireLoaded = false;
+                        break;
+                    }
+                }
+                else {
+                    if (
+                        !moduleMap[mod.realDeps[j]]
+                            ||
+                            moduleMap[mod.realDeps[j]].status
+                                !==
+                                MODULES_STATUS_SUCCESS
+                    ) {
+                        localRequireLoaded = false;
+                        break;
+                    }
                 }
             }
-            if(isDepLoad){
-                analyseModule.status = MODULES_STATUS_SUCCESS;
-                analyseModule.exports = getExports(analyseModule.name);
+            if (localRequireLoaded) {
+                if (!mod.exports) {
+                    // var args = [require],
+                    var args = [],
+                        deps = mod.deps;
+                    if (deps && deps.length) {
+                        var tmpName = '', dep;
+                        for (var i = 0; i < deps.length; i++) {
+                            dep = deps[i];
+                            if (moduleMap[dep].exports) {
+                                args.push(moduleMap[dep].exports);
+                            }
+                            else {
+                                args.push(getExports(dep));
+                            }
+                        }
+                    }
+                    args.push(require); // require 为factory的最后一个参数
+                    mod.exports = isFunction(mod.factory)
+                                     ?
+                                     mod.factory.apply(null, args)
+                                     :
+                                     mod.factory;
+                    mod.status  = MODULES_STATUS_SUCCESS;
+                    fire(mod, {
+                        type: 'moduleLoad',
+                        data: {
+                            curModule: mod
+                        }
+                    });
+                    delete delayLoadModuleMap[i];
+                    if (!isEmptyObject(delayLoadModuleMap)) {
+                        checkDelayLoadModule();
+                    }
+                }
             }
         }
     }
 
-    function load(requireId){
-        var curRequireData  = requireMap[requireId],
-            moduleUrls      = curRequireData.moduleUrls,
-            moduleNames     = curRequireData.moduleNames,
-            len             = moduleUrls.length,
-            index           = len - 1;
+    /**
+     * moudleLoad 事件监听处理
+     */
+    function moduleLoadListener(d) {
+        var curAnalyseMod     = d.curModule,
+            requireId         = curAnalyseMod.requireId,
+            curRequireData    = requireMap[requireId],
+            moduleUrls        = curRequireData.moduleUrls,
+            moduleIds         = curRequireData.moduleIds,
+            analyseModuleList = curRequireData.analyseModuleList,
+            isAllLoad         = true;
 
-        while(curRequireData.moduleCount){
-            // var url = moduleUrls[curRequireData.moduleCount - 1];
-            // var name = moduleNames[curRequireData.moduleCount - 1];
-            var url = moduleUrls.pop();
-            var name = moduleNames.pop();
-            curRequireData.moduleCount--;
-            append2Frag(name, url, requireId);
+        for (var key in moduleMap) {
+            var mod = moduleMap[key];
+            if (mod.status != MODULES_STATUS_SUCCESS) {
+                isAllLoad = false;
+                break;
+            }
         }
 
-        HEAD.appendChild(SCRIPTFRAG);
-        removeScriptInFrag();
-
-        // for(var i = 0, l = SCRIPTFRAG.childNodes.length; i < l; i++){
-        //     console.log(SCRIPTFRAG.childNodes[i].getAttribute('src'));
+        if (isAllLoad) {
+            var args = [],
+                item = null,
+                len  = curRequireData.callbackArgs.length;
+            for (var i = 0; i < len; i++) {
+                item = curRequireData.callbackArgs[i];
+                args[args.length++] = moduleMap[item].exports;
+            }
+            fire(requireMap[requireId], {
+                type: 'requireSuccess',
+                data: {
+                    args: args
+                }
+            });
+        }
+        // else {
+        //     if (!isEmptyObject(delayLoadModuleMap)) {
+        //         checkDelayLoadModule();
+        //     }
         // }
     }
 
-    function append2Frag(moduleName, modulePath, requireId, isLast){
-        var curMod = moduleMap[moduleName];
-        curMod.status = MODULES_STATUS_LOADING;
-        curMod.requireId = requireId;
-        var el = DOC.createElement('script');
-        el.type = 'text/javascript';
-        el.src = modulePath;
-        el.async = true;
-        el.defer = false;
-        el.setAttribute('module-indentity', moduleName);
-        el.onerror = error;
-        if (el.readyState) {
-            el.onreadystatechange = process;
-        }
-        else {
-            el.onload = process;
-        }
-
-        currentlyAddingScript = el;
-        SCRIPTFRAG.appendChild(el);
-        currentlyAddingScript = null;
-
-        function process(e){
-            if (typeof el.readyState == 'undefined'
-                    || (/loaded|complete/.test(el.readyState))) {
-                el.onload = el.onreadystatechange = null;
-                el = null;
-            }
-        }
-        //TODO: IE不支持onerror，加载一个不存在脚本怎么处理
-        function error() {
-            el.onerror = el.onload = null;
-            setTimeout(function (){
-                HEAD.removeChild(el);
-                el = null; // 处理旧式IE循环引用问题
-            });
-            throw new Error('加载 ' + moduleName + ' 模块错误，' + moduleName + '的url为：'+ modulePath);
-        }
-    }
-
-    function removeScriptInFrag(moduleIndentity){
-        var i = SCRIPTFRAG.childNodes.length - 1, curScriptFrag;
-        if(!moduleIndentity){
-            // SCRIPTFRAG全部append到head上后清空 SCRIPTFRAG
-            for( ; curScriptFrag = SCRIPTFRAG.childNodes[i]; i--) {
-                HEAD.removeChild(curScriptFrag);
-            }
-        }else{
-            // 移除指定的那个
-            for( ; curScriptFrag = SCRIPTFRAG.childNodes[i]; i--) {
-                if(curScriptFrag.getAttribute('module-indentity') == moduleIndentity){
-                    SCRIPTFRAG.removeChild(curScriptFrag);
+    /**
+     * 检测是否循环依赖
+     * @param  {String} name   模块标识
+     * @param  {Array} deps 模块依赖集合
+     * @return {[type]}      [description]
+     */
+    function checkCircle(id, deps) {
+        if (deps) {
+            var curMod, len = deps.length;
+            for (var i = 0; i < len; i++) {
+                curMod = moduleMap[deps[i]];
+                if (curMod) {
+                    if (
+                        curMod.id === id
+                        ||
+                            (curMod.deps && curMod.deps.length)
+                            &&
+                                checkCircle(id, curMod.deps)
+                    ) {
+                        return true;
+                    }
                 }
             }
         }
     }
 
-    function each(items, callback, isReverse) {
-        if (!items) {
-            return;
+    function isEmptyObject(obj) {
+        for ( var name in obj ) {
+            return false;
         }
-        if (!isArray(items)) {
-            if (isObject(items)) {
-                for (var key in items) {
-                    if (callback.call(null, items[key], key) === false) {
-                        break;
-                    }
-                }
-            }
-            else {
-                try {
-                    items = Array.prototype.slice.call(items);
-                }
-                catch (e) {
-                    throw new Error(e);
-                }
-            }
-        }
-        else {
-            var i, item;
-            if(isReverse){
-                var len = items.length;
-                for (i = len - 1; item = items[i]; i--) {
-                    if (callback.call(null, item, i) === false) {
-                        break;
-                    }
-                }
-            }else{
-                for (i = 0; item = items[i]; i++) {
-                    if (callback.call(null, item, i) === false) {
-                        break;
-                    }
-                }
-            }
-        }
+        return true;
     }
 
     function is(type, obj) {
@@ -634,17 +1069,37 @@ var define, require;
     }
 
     function deepClone(target, source){
-        each(source, function(item, key){
-            if(isArray(item)){
-                target[key] = [];
-                deepClone(target[key], source[key]);
-            }else if(isObject(item)){
-                target[key] = {};
-                deepClone(target[key], source[key]);
-            }else{
-                target[key] = source[key];
+        if (isArray(source)) {
+            var item, len = source.length;
+            for (var i = 0; i < len; i++) {
+                item = source[i];
+                if (isArray(item)) {
+                    target[i] = [];
+                    deepClone(target[i], item);
+                }
+                else if (isObject(item)) {
+                    target[i] = {};
+                    deepClone(target[i], item);
+                }
+                else {
+                    target[i] = item;
+                }
             }
-        });
+        }else if (isObject(source)) {
+            for (var key in source) {
+                if (isArray(source[key])) {
+                    target[key] = [];
+                    deepClone(target[key], source[key]);
+                }
+                else if (isObject(source[key])) {
+                    target[key] = {};
+                    deepClone(target[key], source[key]);
+                }
+                else {
+                    target[key] = source[key];
+                }
+            }
+        }
         return target;
     }
 
@@ -661,39 +1116,39 @@ var define, require;
                 callback: callback
             };
 
-            // 当前对象还未绑过自定义事件
-            if (!obj[OBJ_EVT_KEY]) {
+            if (!obj[OBJ_EVT_KEY]) { // 当前对象还未绑过自定义事件
                 obj[OBJ_EVT_KEY] = {};
                 obj[OBJ_EVT_KEY][type] = [me];
             }
-            // 已经绑定过自定义事件
-            else {
+            else { // 已经绑定过自定义事件
                 if (!obj[OBJ_EVT_KEY].hasOwnProperty(type)) {
                     obj[OBJ_EVT_KEY][type] = [me];
-                } else {
+                }
+                else {
                     obj[OBJ_EVT_KEY][type].push(me);
                 }
             }
         }
     }
 
-
     /**
      * 触发自定义事件
-     * @param  {Obiect}            obj 触发事件对象
-     * @param  {string | Object}   params 触发事件的参数，包括类型和数据
-     * @return {[type]}      [description]
+     * @param  {Obiect} obj 触发事件对象
+     * @param  {string | Object} params 触发事件的参数，包括类型和数据
+     * @return {[type]} [description]
      */
     function fire(obj, params) {
         var arr, func, evtType, callbackArgs;
         if (isObject(params)) {
             evtType = params.type;
             callbackArgs = params.data;
-        } else if (isString(params)) {
+        }
+        else if (isString(params)) {
             evtType = params;
         }
 
         if (!obj[OBJ_EVT_KEY] || !obj[OBJ_EVT_KEY].hasOwnProperty(evtType)) {
+            ERRORFLAG = true;
             throw new Error('对象未绑定 ' + evtType + ' 事件')
         }
 
@@ -710,11 +1165,273 @@ var define, require;
         }
     }
 
-    require.config = {
-        baseUrl: './'
+    /**
+     * 分析factory中的require
+     * @param  {string} s factory.toString()
+     * @return {[type]}   [description]
+     */
+    function getDependencies(factoryStr) {
+
+        /**
+         * 获取下一个字符
+         */
+        function getNextChar() {
+            peek = factoryStr.charAt(index++);
+        }
+
+        /**
+         * 是否是空格
+         */
+        function isBlank() {
+            return /\s/.test(peek);
+        }
+
+        /**
+         * 是否是引号
+         */
+        function isQuote() {
+            return peek === '"' || peek === "'";
+        }
+
+        /**
+         * 是否是字母
+         */
+        function isWord() {
+            return /[\w$.]/.test(peek);
+        }
+
+        /**
+         * 处理引号的情况
+         */
+        function dealQuote() {
+            var start = index,
+                c = peek,
+                end = factoryStr.indexOf(c, start);
+
+            if (!inBracket) {
+                if (factoryStr.charAt(end - 1) !== '\\') {
+                    index = end + 1;
+                }
+                else {
+                    while (index < length) {
+                        getNextChar();
+                        if (peek == '\\') {
+                            index++;
+                        } else if (peek === c) {
+                            break;
+                        }
+                    }
+                }
+                if (modName) {
+                    /*var tmpName = factoryStr.slice(start, index - 1);
+                    if (
+                        REG.URI_PROTOCOL.test(tmpName)
+                        ||
+                        REG.SUFFIX_JS.test(tmpName)
+                    ) {
+                        tmpName = tmpName.replace(REG.SUFFIX_JS, '');
+                        for (var key in requireConf.paths) {
+                            if (
+                                tmpName === key
+                                ||
+                                requireConf.paths[key] === tmpName
+                            ) {
+                                tmpName = key;
+                                break;
+                            }
+                        }
+                    }
+                    res.push(tmpName);*/
+                    res.push(factoryStr.slice(start, index - 1));
+                    modName = false;
+                }
+            }
+            else {
+                modName = true;
+                if (factoryStr.charAt(end - 1) != '\\') {
+                    index = end + 1;
+                }
+                else {
+                    while (index < length) {
+                        getNextChar();
+                        if (peek == '\\') {
+                            index++;
+                        }
+                        else if (peek == c) {
+                            break;
+                        }
+                    }
+                }
+                if (modName) {
+                    /*var tmpName = factoryStr.slice(start, index - 1);
+                    if (
+                        REG.URI_PROTOCOL.test(tmpName)
+                        ||
+                        REG.SUFFIX_JS.test(tmpName)
+                    ) {
+                        tmpName = tmpName.replace(REG.SUFFIX_JS, '');
+                        for (var key in requireConf.paths) {
+                            if (
+                                tmpName === key
+                                ||
+                                requireConf.paths[key] === tmpName
+                            ) {
+                                tmpName = key;
+                                break;
+                            }
+                        }
+                    }
+                    res.push(tmpName);*/
+                    res.push(factoryStr.slice(start, index - 1));
+                    modName = false;
+                }
+            }
+        }
+
+        /**
+         * 处理字母
+         */
+        function dealWord() {
+            if (/[\w$.]/.test(factoryStr.charAt(index))) {
+                var r   = /^[\w$.]+/.exec(factoryStr.slice(index - 1))[0];
+                modName = (/^require(\s*\.\s*async)?$/.test(r));
+                index   += r.length - 1;
+                parentheseState = ['if', 'for', 'while'].indexOf(r) != -1;
+                isReg =
+                    [
+                        'else',
+                        'in',
+                        'return',
+                        'typeof',
+                        'delete'
+                    ].indexOf(r) != -1;
+            }
+            else {
+                modName = false;
+                isReg = false;
+            }
+        }
+
+        /**
+         * 处理正则
+         */
+        function dealReg() {
+            index--;
+            while (index < length) {
+                getNextChar();
+                if (peek === '\\') {
+                    index++;
+                }
+                else if (peek === '/') {
+                    break;
+                }
+                else if (peek === '[') {
+                    while (index < length) {
+                        getNextChar();
+                        if (peek === '\\') {
+                            index++;
+                        }
+                        else if (peek === ']') {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        var startIndex = factoryStr.indexOf('{');
+        if (factoryStr.indexOf('require', startIndex) == -1) {
+            return [];
+        }
+        var index = startIndex,
+            peek, length = factoryStr.length,
+            isReg = true,
+            modName = false,
+            parentheseState = false,
+            parentheseStack = [],
+            inBracket = false,
+            res = [];
+        while (index < length) {
+            getNextChar();
+            // debugger
+            if (!isBlank()){
+                if (isQuote()) {
+                    dealQuote();
+                    isReg = true;
+                }
+                else if (peek === '/') {
+                    getNextChar();
+                    if (peek === '/') {
+                        index = factoryStr.indexOf('\n', index);
+                        if (index === -1) {
+                            index = factoryStr.length;
+                        }
+                        isReg = true;
+                    }
+                    else if (peek === '*') {
+                        index = factoryStr.indexOf('*/', index) + 2;
+                        isReg = true;
+                    }
+                    else if (isReg) {
+                        dealReg();
+                        isReg = false;
+                    }
+                    else {
+                        index--;
+                        isReg = true;
+                    }
+                }
+                else if (isWord()) {
+                    dealWord();
+                }
+                else if (peek === '(') {
+                    parentheseStack.push(parentheseState);
+                    isReg = true;
+                }
+                else if (peek === ')') {
+                    isReg = parentheseStack.pop();
+                }
+                else if (peek === '[') {
+                    parentheseStack.push(parentheseState);
+                    isReg = true;
+                    inBracket = true;
+                }
+                else if (peek === ',') {
+                    if(inBracket){
+                        parentheseStack.push(parentheseState);
+                        isReg = true;
+                    }
+                }
+                else if (peek === ']') {
+                    isReg = parentheseStack.pop();
+                    inBracket = false;
+                }
+                else {
+                    isReg = peek !== ']';
+                    modName = false;
+                }
+            }
+        }
+
+        return res;
     }
 
-    define.amd = {};
+    var requireConf = {
+        baseUrl: './',
+        paths: {}
+    }
+
+    require.config = function(opts){
+        for(var key in requireConf){
+            if(opts.hasOwnProperty(key)){
+                requireConf[key] = opts[key];
+            }
+        }
+    }
+
+    define.amd = {
+        jQuery: true
+    };
     global.define = define;
     global.require = require;
 

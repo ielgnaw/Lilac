@@ -4,57 +4,611 @@
 <meta charset="utf-8">
 <title>test</title>
 <style type="text/css">
+    body {
+        margin: 0px 0px 0px 0px;
+        padding: 0px 0px 0px 0px;
+        color: #c060;
+        text-align: center;
+        font: 16px/1.125 Arial,Helvetica,sans-serif;
+    }
+    .result{
+        width: 700px;
+        min-height: 200px;
+        padding: 10px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        margin-right: auto;
+        margin-left: auto;
+        background: #FFF;
+        border: 1px solid #666;
+        text-align:left;
+    }
+
+    .control{
+        margin-top: 30px;
+    }
+
+
+    .button{
+        display: inline-block;
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 2px;
+        overflow: hidden;
+        vertical-align: middle;
+        text-align: center;
+        cursor: pointer;
+        border-color: #d9d9d9;
+        background-color: #f2f2f2;
+        text-decoration: none;
+        color: #0f0f0f;
+        width: 170px;
+        /*min-width: 180px;*/
+        /*margin: 7px 10px;*/
+    }
+
+    .button span{
+        padding: 0 9px 0 10px;
+        white-space: nowrap;
+        display: inline-block;
+        border-style: none;
+        border-width: 1px;
+        border-radius: 2px;
+        height: 18px;
+        line-height: 18px;
+    }
+
+    #mytable {
+        width: 1060px;
+        padding: 0;
+        margin: 0 auto;
+    }
+
+    .firstCell{
+        /*border-left: 1px solid #C1DAD7;*/
+    }
+
+    .firstRow{
+        /*border-top: 1px solid #C1DAD7;*/
+    }
+
+    td {
+        /*border-right: 1px solid #C1DAD7;*/
+        /*border-bottom: 1px solid #C1DAD7;*/
+        background: #fff;
+        font-size:11px;
+        padding: 6px 6px 6px 12px;
+    }
 </style>
-<script type="text/javascript" src="../src/Lilac.js"></script>
 </head>
-<input type="button" value="a" id="a">
-<input type="button" value="simple" id="simple">
-<input type="button" value="simpleDependency" id="simpleDependency">
-<input type="button" value="relativeDependency" id="relativeDependency">
-<input type="button" value="deepDependency" id="deepDependency">
-<input type="button" value="manyDependencies" id="manyDependencies">
-<input type="button" value="objectFactory" id="objectFactory">
-<input type="button" value="noDefineId" id="noDefineId">
-
 <body>
-<script type="text/javascript">
-    require.config.baseUrl = './';
-    window.onload = function(){
+<div class="control">
+    <h4>鼠标浮到按钮上会显示加载的模块名称</h4>
+    <h6>循环依赖暂不支持，会抛出错误</h6>
+    <table id="mytable" cellspacing="0" >
+        <tr>
+            <td class="row firstCell firstRow">无依赖的加载</td>
+            <td class="row firstRow">
+                <a class="button" id="modules/simple/index/defineId" title="modules/simple/index/defineId" href="javascript:void(0)">
+                    <span>加载具名模块</span>
+                </a>
+            </td>
+            <td class="row firstRow">
+                <a class="button" id="modules/simple/index/noDefineId" title="modules/simple/index/noDefineId" href="javascript:void(0)">
+                    <span>加载匿名模块</span>
+                </a>
+            </td>
+            <td class="row firstRow">
+                <a class="button" id="modules/simple/index/objectFactory" title="modules/simple/index/objectFactory" href="javascript:void(0)">
+                    <span>加载对象工厂</span>
+                </a>
+            </td>
+            <td class="row firstRow">
+                <a class="button" id="jqueryNoPaths" title="http://libs.baidu.com/jquery/1.9.1/jquery" href="javascript:void(0)">
+                    <span>加载js文件（未配置paths）</span>
+                </a>
+            </td>
+            <td class="row firstRow">
+                <a class="button" id="lessInPaths" title="less" href="javascript:void(0)">
+                    <span>加载js文件（已配置paths）</span>
+                </a>
+            </td>
+        </tr>
+        <tr>
+            <td class="row firstCell">有依赖的加载</td>
+            <td class="row">
+                <a class="button" id="modules/dependency/simpleDependency/index" title="modules/dependency/simpleDependency/index" href="javascript:void(0)">
+                    <span>依赖具名模块</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/dependency/simpleDependency/depNotDefineId" title="modules/dependency/simpleDependency/depNotDefineId" href="javascript:void(0)">
+                    <span>依赖匿名模块</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/dependency/simpleDependency/relative" title="modules/dependency/simpleDependency/relative" href="javascript:void(0)">
+                    <span>相对路径1</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/dependency/deepDependency/index" title="modules/dependency/deepDependency/index" href="javascript:void(0)">
+                    <span>深度依赖</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/dependency/relativeDependency/index" title="modules/dependency/relativeDependency/index" href="javascript:void(0)">
+                    <span>相对路径2</span>
+                </a>
+            </td>
+        </tr>
+        <tr>
+            <td class="row firstCell">模拟cjs（仅暴露require）</td>
+            <td class="row">
+                <a class="button" id="modules/cjs/simpleDependency/index" title="modules/cjs/simpleDependency/index" href="javascript:void(0)">
+                    <span>依赖具名模块</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/cjs/simpleDependency/depNotDefineId" title="modules/cjs/simpleDependency/depNotDefineId" href="javascript:void(0)">
+                    <span>依赖匿名模块</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/cjs/simpleDependency/relative" title="modules/cjs/simpleDependency/relative" href="javascript:void(0)">
+                    <span>相对路径1</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/cjs/deepDependency/index" title="modules/cjs/deepDependency/index" href="javascript:void(0)">
+                    <span>深度依赖</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/cjs/relativeDependency/index" title="modules/cjs/relativeDependency/index" href="javascript:void(0)">
+                    <span>相对路径2</span>
+                </a>
+            </td>
+        </tr>
+    </table>
+</div>
+<div class="result" id="result"></div>
 
+<script type="text/javascript" src="../src/Lilac.js"></script>
+<!-- <script type="text/javascript" src="../src/esl.js"></script> -->
+<!-- <script type="text/javascript" src="../src/require.js"></script> -->
+<script type="text/javascript">
+    require.config({
+        baseUrl : './',
+        paths   : {
+            'jquery'          : 'http://libs.baidu.com/jquery/1.9.1/jquery',
+            'less'            : 'http://libs.baidu.com/lesscss/1.3.0/less.min',
+            'absoluteModules' : '/test/absoluteModules',
+            'relativeModules' : 'test/relativeModules',
+            'ecom': 'http://1.wlstatic.newoffline.bae.baidu.com/lib/ecom'
+        }
+    });
+
+    window.onload = function(){
         var $ = function(id){
             return typeof id == 'string' ? document.getElementById(id) : id;
         }
 
-        $('simple').onclick = function(){
-            require(['amd/simple/index/index'], function(index){
-                console.log(index);
-                console.log('require amd/simple/index/index', arguments, arguments.length);
+        $('modules/simple/index/defineId').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/simple/index/defineId</b> <br><br>'
+                  + 'modules/simple/index/defineId === defineId.name ';
+            $('result').innerHTML = html;
+            require(['modules/simple/index/defineId'], function(defineId){
+                var ret = (defineId.name === 'modules/simple/index/defineId');
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b>';
+                $('result').innerHTML = html;
             });
-        }
+        };
 
-        $('simpleDependency').onclick = function(){
-            require(['amd/simpleDependency/index'], function(index){
-                console.log(index);
-                console.log(index.check());
-                console.log('require amd/simpleDependency/index', arguments, arguments.length);
+        $('modules/simple/index/noDefineId').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/simple/index/noDefineId</b> <br><br>'
+                  + 'modules/simple/index/noDefineId === noDefineId.name ';
+            $('result').innerHTML = html;
+            require(['modules/simple/index/noDefineId'], function(noDefineId){
+                var ret = (noDefineId.name === 'modules/simple/index/noDefineId');
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b>';
+                $('result').innerHTML = html;
             });
-        }
+        };
 
-        $('relativeDependency').onclick = function(){
-            require(['amd/relativeDependency/index'], function(index){
-                console.log(index);
-                console.log(index.check());
-                console.log('require amd/relativeDependency/index', arguments, arguments.length);
+        $('modules/simple/index/objectFactory').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/simple/index/objectFactory</b> <br><br>'
+                  + 'modules/simple/index/objectFactory === objectFactory.name ';
+            $('result').innerHTML = html;
+            require(['modules/simple/index/objectFactory'], function(objectFactory){
+                var ret = (objectFactory.name === 'modules/simple/index/objectFactory');
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b>';
+                $('result').innerHTML = html;
             });
-        }
+        };
 
-        $('deepDependency').onclick = function(){
-            require(['amd/deepDependency/index'], function(index){
-                console.log(index);
-                console.log(index.check());
-                console.log('require amd/deepDependency/index', arguments, arguments.length);
+        $('jqueryNoPaths').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>http://libs.baidu.com/jquery/1.9.1/jquery</b> <br><br>'
+                 + 'jQuery version ';
+            $('result').innerHTML = html;
+            // 现在直接 require 一个http路径的js文件还必须在paths中配置
+            require(['http://libs.baidu.com/jquery/1.9.1/jquery'], function(){
+                html += ''
+                    + '<b style="margin-left: 20px;background: #00FF00">'
+                    + window.jQuery().jquery
+                    + '</b>'
+                $('result').innerHTML = html;
             });
-        }
+        };
+
+        $('lessInPaths').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>less</b> <br><br>'
+                 + 'less env ';
+            $('result').innerHTML = html;
+            require(['less'], function(){
+                setTimeout(function(){
+                    html += ''
+                        + '<b style="margin-left: 20px;background: #00FF00">'
+                        + window.less.env
+                        + '</b>'
+                    $('result').innerHTML = html;
+                }, 0);
+            });
+        };
+
+        $('modules/dependency/simpleDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/dependency/simpleDependency/index</b><br><br>'
+                  + 'modules/dependency/simpleDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/dependency/simpleDependency/index'], function(index){
+                var ret = (index.name === 'modules/dependency/simpleDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/dependency/simpleDependency/index 依赖于<br>'
+                    + '模块：modules/dependency/simpleDependency/foo<br><br>'
+                    + 'modules/dependency/simpleDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/dependency/simpleDependency/depNotDefineId').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/dependency/simpleDependency/depNotDefineId</b><br><br>'
+                  + 'modules/dependency/simpleDependency/depNotDefineId === depNotDefineId.name ';
+            $('result').innerHTML = html;
+            require(['modules/dependency/simpleDependency/depNotDefineId'], function(depNotDefineId){
+                var ret = (depNotDefineId.name === 'modules/dependency/simpleDependency/depNotDefineId');
+                var ret1 = depNotDefineId.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/dependency/simpleDependency/depNotDefineId 依赖于<br>'
+                    + '模块：modules/dependency/simpleDependency/bar<br><br>'
+                    + 'modules/dependency/simpleDependency/depNotDefineId.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/dependency/simpleDependency/relative').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/dependency/simpleDependency/relative</b><br><br>'
+                  + 'modules/dependency/simpleDependency/relative === relative.name ';
+            $('result').innerHTML = html;
+            require(['modules/dependency/simpleDependency/relative'], function(relative){
+                var ret = (relative.name === 'modules/dependency/simpleDependency/relative');
+                var ret1 = relative.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/dependency/simpleDependency/relative.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/dependency/deepDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/dependency/deepDependency/index</b><br><br>'
+                  + 'modules/dependency/deepDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/dependency/deepDependency/index'], function(index){
+                var ret = (index.name === 'modules/dependency/deepDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/dependency/deepDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/dependency/relativeDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/dependency/relativeDependency/index</b><br><br>'
+                  + 'modules/dependency/relativeDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/dependency/relativeDependency/index'], function(index){
+                var ret = (index.name === 'modules/dependency/relativeDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/dependency/relativeDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/cjs/simpleDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/cjs/simpleDependency/index</b><br><br>'
+                  + 'modules/cjs/simpleDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/cjs/simpleDependency/index'], function(index){
+                var ret = (index.name === 'modules/cjs/simpleDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/cjs/simpleDependency/index 依赖于<br>'
+                    + '模块：modules/cjs/simpleDependency/foo<br><br>'
+                    + 'modules/cjs/simpleDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/cjs/simpleDependency/depNotDefineId').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/cjs/simpleDependency/depNotDefineId</b><br><br>'
+                  + 'modules/cjs/simpleDependency/depNotDefineId === depNotDefineId.name ';
+            $('result').innerHTML = html;
+            require(['modules/cjs/simpleDependency/depNotDefineId'], function(depNotDefineId){
+                var ret = (depNotDefineId.name === 'modules/cjs/simpleDependency/depNotDefineId');
+                var ret1 = depNotDefineId.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/cjs/simpleDependency/depNotDefineId 依赖于<br>'
+                    + '模块：modules/cjs/simpleDependency/bar<br><br>'
+                    + 'modules/cjs/simpleDependency/depNotDefineId.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/cjs/simpleDependency/relative').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/cjs/simpleDependency/relative</b><br><br>'
+                  + 'modules/cjs/simpleDependency/relative === relative.name ';
+            $('result').innerHTML = html;
+            require(['modules/cjs/simpleDependency/relative'], function(relative){
+                var ret = (relative.name === 'modules/cjs/simpleDependency/relative');
+                var ret1 = relative.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/cjs/simpleDependency/relative.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/cjs/deepDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/cjs/deepDependency/index</b><br><br>'
+                  + 'modules/cjs/deepDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/cjs/deepDependency/index'], function(index){
+                var ret = (index.name === 'modules/cjs/deepDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/cjs/deepDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        $('modules/cjs/relativeDependency/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/cjs/relativeDependency/index</b><br><br>'
+                  + 'modules/cjs/relativeDependency/index === index.name ';
+            $('result').innerHTML = html;
+            require(['modules/cjs/relativeDependency/index'], function(index){
+                var ret = (index.name === 'modules/cjs/relativeDependency/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + '模块：modules/cjs/relativeDependency/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        };
+
+        /*
 
         $('manyDependencies').onclick = function(){
             require(['amd/manyDependencies/index'], function(index){
@@ -64,32 +618,38 @@
             });
         }
 
-        $('objectFactory').onclick = function(){
-            require(['amd/objectFactory/index'], function(index){
-                console.log(index);
-                console.log('require amd/objectFactory/index', arguments, arguments.length);
-            });
-        }
-
-
-        $('noDefineId').onclick = function(){
-            require(['amd/noDefineId/index'], function(index){
-                console.log(index);
-                console.log('require amd/noDefineId/index', arguments, arguments.length);
-            });
-        }
-
 
         $('a').onclick = function(){
-            // require(['moduleA/a','../../moduleD/d'], function(){
-            // require(['moduleB/b', '../../moduleD/d'], function(a,d){
-            // require(['moduleD/d'], function(d){
-            require(['moduleA/a', 'moduleD/d'], function(b){
-            // require(['moduleA/a'], function(a){
-            // require(['moduleC/c'], function(){
-                console.log('require moduleA/a', arguments, arguments.length);
+            // require(['moduleA/a','moduleD/d', 'jquery'], function(){
+            // require(['moduleC/c', 'jquery'], function(){
+            // require(['moduleB/b', 'moduleD/d'], function(a,d){
+            // require(['moduleD/d', 'jquery'], function(d){
+            // require(['moduleA/a', 'moduleD/d'], function(b){
+            // require(['moduleC/c', 'moduleD/d', 'moduleW/w'], function(b){
+            // require(['moduleA/a', 'jquery'], function(a){
+            // require(['moduleE/e'], function(){
+            require(['moduleD/d'], function(){
+                console.log('require moduleD/d', arguments, arguments.length);
             });
         }
+
+        $('circleDependency').onclick = function(){
+            require(['circleDependency/index'], function(){
+                console.log('require circleDependency', arguments );
+            });
+        }
+
+        $('innerDependency').onclick = function(){
+            require(['amd/innerDependency/index'], function(){
+                console.log('require amd/innerDependency/index', arguments );
+            });
+        }
+
+        $('innerRelativeDependency').onclick = function(){
+            require(['amd/innerRelativeDependency/index'], function(){
+                console.log('require amd/innerRelativeDependency/index', arguments );
+            });
+        }*/
     }
 </script>
 </body>
