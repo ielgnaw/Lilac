@@ -3,8 +3,6 @@ define(
     function ( require ) {
         var level1 = require('modules/cjs/deepDependency/level1');
         var level11 = require('modules/cjs/deepDependency/level11');
-        console.error('level1', level1);
-        console.error('level11', level11);
         return {
             name: 'modules/cjs/deepDependency/index',
             check: function () {

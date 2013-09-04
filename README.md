@@ -19,7 +19,7 @@ test目录包含了一些自己写的测试用例，目前覆盖面不是很全�
 
 2. 加载插件、资源
 
-3. 提供 Simplified CommonJS Wrapper (CJS) 支持
+3. <del>提供 Simplified CommonJS Wrapper (CJS) 支持</del>
 
 4. 打包构建工具
 
