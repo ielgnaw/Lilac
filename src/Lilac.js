@@ -2,139 +2,44 @@ var define, require;
 
 (function(global, undefined) {
 
-    var DOC = global.document,
+    var DOC = global.document;
+    var HEAD = DOC.getElementsByTagName('head')[0] || DOC.body;
+    var OBJ_EVT_KEY = '__objEvtKey__';
+    var SCRIPTFRAG = document.createDocumentFragment();
 
-        HEAD = DOC.getElementsByTagName('head')[0] || DOC.body,
+    var MODULES_STATUS_UNDEFINE   = 'undefine'; // 模块初始状态
+    var MODULES_STATUS_DEFINED    = 'defined';  // 模块 define 的状态
+    var MODULES_STATUS_LOADING    = 'loading';  // 模块正在加载
+    var MODULES_STATUS_ANALYSE    = 'analyse';  // 模块解析的状态，解析当前模块的依赖的时候，当前模块的状态值
+    var MODULES_STATUS_SUCCESS    = 'success';  // 模块加载并解析完毕并输出exports
+    var MODULE_STATUS_FAIL_CIRCLE = 'circle';   // 模块加载失败，存在循环依赖
 
-        /**
-         * 存放script标签的文档碎片
-         * @type {HTMLElement}
-         */
-        SCRIPTFRAG = document.createDocumentFragment(),
+    var currentlyAddingScript; // @see requirejs
+    /**
+     * 先要得到相对于 config.baseUrl 的绝对地址，
+     * 然后根据这个绝对地址，去得到模块的地址
+     * @type {String}
+     */
+    var baseAbsolutePath = '';
+    var idUrlMap = {}; // moduleId moduleUrl 映射
+    var moduleMap = {}; // 存储模块信息的共享变量
+    var requireMap = {}; // 记录调用require
+    /**
+     * 具有 localRequireDep 或者 Dep的 module，
+     * 要等 localRequireDep 或者 Dep 加载完后再加载 module
+     * @type {Object}
+     */
+    var delayLoadModuleMap = {};
+    var ERRORFLAG = false; // 错误的标志位
 
-        /**
-         * 自定义事件对象存储自定义事件type的key
-         * @type {Object}
-         */
-        OBJ_EVT_KEY = '__objEvtKey__',
-
-        /**
-         * 模块初始状态
-         * @type {String}
-         */
-        MODULES_STATUS_UNDEFINE = 'undefine',
-
-        /**
-         * 模块 define 的状态
-         * @type {String}
-         */
-        MODULES_STATUS_DEFINED = 'defined',
-
-        /**
-         * 模块正在加载
-         * @type {String}
-         */
-        MODULES_STATUS_LOADING = 'loading',
-
-        /**
-         * 模块解析的状态
-         * 解析当前模块的依赖的时候，当前模块的状态值
-         * @type {String}
-         */
-        MODULES_STATUS_ANALYSE = 'analyse',
-
-        /**
-         * 模块加载并解析完毕并输出exports
-         * @type {String}
-         */
-        MODULES_STATUS_SUCCESS = 'success',
-
-        /**
-         * 模块加载失败，存在循环依赖
-         * @type {String}
-         */
-        MODULE_STATUS_FAIL_CIRCLE = 'circle',
-
-        /**
-         * @see  requirejs
-         */
-        currentlyAddingScript,
-
-        REG = {
-            /**
-             * js 文件后缀
-             * @type {RegExp}
-             */
-            SUFFIX_JS : /(\.js)$/,
-
-            /**
-             * "./" 开头的模块前缀
-             * @type {RegExp}
-             */
-            PREFIX_1DOT : /^\.\//,
-
-            /**
-             * "../" 开头的模块前缀
-             * @type {RegExp}
-             */
-            PREFIX_2DOT : /^\.\.\//,
-
-            /**
-             * "/" 开头的模块前缀
-             * @type {RegExp}
-             */
-            PREFIX_SLASH : /^\//,
-
-            /**
-             * 包含URL协议
-             * @type {RegExp}
-             */
-            URI_PROTOCOL: /^(https:\/\/|http:\/\/|file:\/\/)/,
-
-            /**
-             * 相对路径前缀
-             * @type {RegExp}
-             */
-            PREFIX_RELATIVE: /^\.+\/|^\//
-        },
-
-        /**
-         * 先要得到相对于 config.baseUrl 的绝对地址，
-         * 然后根据这个绝对地址，去得到模块的地址
-         * @type {String}
-         */
-        baseAbsolutePath = '',
-
-        /**
-         * moduleId moduleUrl 映射
-         * @type {Object}
-         */
-        idUrlMap = {},
-
-        /**
-         * 存储模块信息的共享变量
-         * @type {Object}
-         */
-        moduleMap = {},
-
-        /**
-         * 记录调用require
-         * @type {Object}
-         */
-        requireMap = {},
-
-        /**
-         * 具有 localRequireDep 或者 Dep的 module，
-         * 要鞥 localRequireDep 或者 Dep 加载完后再加载 module
-         * @type {Object}
-         */
-        delayLoadModuleMap = {},
-
-        /**
-         * 错误的标志位
-         * @type {Boolean}
-         */
-        ERRORFLAG = false;
+    var REG = {
+        SUFFIX_JS : /(\.js)$/, // js 文件后缀
+        PREFIX_1DOT : /^\.\//, // './' 开头的模块前缀
+        PREFIX_2DOT : /^\.\.\//, // '../' 开头的模块前缀
+        PREFIX_SLASH : /^\//, // '/' 开头的模块前缀
+        URI_PROTOCOL: /^(https:\/\/|http:\/\/|file:\/\/)/, // 包含URL协议
+        PREFIX_RELATIVE: /^\.+\/|^\// // 相对路径前缀
+    };
 
     /**
      * fix ie version < 9
@@ -537,7 +442,8 @@ var define, require;
         };
 
         register(requireMap[requireId], 'requireSuccess', function(d){
-            callback.apply(null, d.args);
+            //console.log(moduleMap);
+            callback && callback.apply(null, d.args);
         });
 
         load(requireId);
