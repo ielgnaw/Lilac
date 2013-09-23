@@ -74,7 +74,8 @@ var define, require;
      * 从 SCRIPTFRAG 中移除 script 标签
      */
     function removeScriptInFrag(moduleIndentity) {
-        var i = SCRIPTFRAG.childNodes.length - 1, curScriptFrag;
+        var i             = SCRIPTFRAG.childNodes.length - 1;
+        var curScriptFrag = null;
         if (!moduleIndentity) {
             // SCRIPTFRAG全部append到head上后清空 SCRIPTFRAG
             for ( ; curScriptFrag = SCRIPTFRAG.childNodes[i]; i--) {
@@ -102,12 +103,12 @@ var define, require;
      * @return {[type]}         [description]
      */
     function parseUrl(url, baseUrl) {
-        var pageHref = baseUrl || window.location.href,
-            isHttp   = pageHref.slice(0, 4) === 'http';
+        var pageHref = baseUrl || window.location.href;
+        var isHttp   = pageHref.slice(0, 4) === 'http';
         if (/^http:\/\//.test(url)) {
             return url;
         }
-        var p1 = pageHref.replace(/^http:\/\/|\?.*$|\/$/g, '').split("/");
+        var p1 = pageHref.replace(/^http:\/\/|\?.*$|\/$/g, '').split('/');
         if (p1.length > 1 && /\w+\.\w+$/.test(p1[p1.length - 1])) {
             p1.pop();
         }
@@ -153,14 +154,14 @@ var define, require;
      * @return {string}     moduleUrl
      */
     function normalizeModuleId(id, baseId) {
-        var dirs  = [],
-            idDir = [],
-            len   = 0,
-            val   = '',
-            tmp   = [],
-            ret   = {},
-            flag  = true,
-            sTmp  = '';
+        var dirs  = [];
+        var idDir = [];
+        var len   = 0;
+        var val   = '';
+        var tmp   = [];
+        var ret   = {};
+        var flag  = true;
+        var sTmp  = '';
 
         if (REG.URI_PROTOCOL.test(id) || REG.SUFFIX_JS.test(id)) {
             var url = id.replace(REG.SUFFIX_JS, '');
@@ -174,7 +175,7 @@ var define, require;
             ret = {
                 id: id,
                 url: url
-            }
+            };
         }
         else {
             if (REG.PREFIX_2DOT.test(id)) {
@@ -195,7 +196,7 @@ var define, require;
                 ret = {
                     id: sTmp.replace(REG.PREFIX_RELATIVE,''),
                     url: sTmp
-                }
+                };
             }
             else if (REG.PREFIX_1DOT.test(id)) {
                 // ./ 开头
@@ -215,7 +216,7 @@ var define, require;
                 ret = {
                     id: sTmp.replace(REG.PREFIX_RELATIVE,''),
                     url: sTmp
-                }
+                };
             }else if(REG.PREFIX_SLASH.test(id)){
                 // moduleId以"/"开头，/a/b/c
                 // 会避开 baseUrl+paths 规则，
@@ -231,7 +232,7 @@ var define, require;
                 ret = {
                     id: sTmp.replace(REG.PREFIX_RELATIVE,''),
                     url: sTmp
-                }
+                };
             }else{
                 // a/b/c，使用 baseUrl+paths 规则
                 idDir = id.split('/');
@@ -263,7 +264,7 @@ var define, require;
                     ret = {
                         id: sTmp.replace(REG.PREFIX_RELATIVE,''),
                         url: sTmp
-                    }
+                    };
                 }
                 else {
                     sTmp = tmp.join('/');
@@ -271,13 +272,13 @@ var define, require;
                         ret = {
                             id: id,
                             url: sTmp
-                        }
+                        };
                     }
                     else {
                         ret = {
                             id: sTmp.replace(REG.PREFIX_RELATIVE,''),
                             url: sTmp
-                        }
+                        };
                     }
                 }
             }
@@ -313,9 +314,13 @@ var define, require;
             return false;
         }
         else {
-            var ret = [], mod, modNormalize;
+            var ret          = [];
+            var modNormalize = null;
+            var mod          = null;
             for (var i = 0, len = moduleIds.length; i < len; i++) {
-                normalizeObj = normalizeModuleId(moduleIds[i], requireConf.baseUrl);
+                normalizeObj = normalizeModuleId(
+                    moduleIds[i], requireConf.baseUrl
+                );
 
                 mod = moduleMap[moduleIds[i]];
                 modNormalize = moduleMap[normalizeObj.id];
@@ -347,8 +352,10 @@ var define, require;
                 :
                 parseUrl(requireConf.baseUrl);
 
-        var ids, callback = null, opts = {};
-        var params = Array.prototype.slice.call(arguments);
+        var ids      = null;
+        var callback = null;
+        var opts     = {};
+        var params   = Array.prototype.slice.call(arguments);
         while (params.length) {
             var param = params.shift();
             var cls = Object.prototype.toString.call(param).slice(8, -1);
@@ -393,13 +400,12 @@ var define, require;
             }
         }
 
-        var requireId    = '',
-            moduleUrl    = '',
-            moduleId     = '',
-            moduleUrls   = [],
-            moduleIds    = [],
-            normalizeObj = {};
-
+        var requireId    = '';
+        var moduleUrl    = '';
+        var moduleId     = '';
+        var moduleUrls   = [];
+        var moduleIds    = [];
+        var normalizeObj = {};
 
         for (var i = 0, len = ids.length; i < len; i++) {
             moduleId     = ids[i];
@@ -442,7 +448,7 @@ var define, require;
         };
 
         register(requireMap[requireId], 'requireSuccess', function(d){
-            //console.log(moduleMap);
+            // console.log(moduleMap);
             callback && callback.apply(null, d.args);
         });
 
@@ -453,9 +459,9 @@ var define, require;
      * 加载脚本
      */
     function load(requireId) {
-        var curRequireData  = requireMap[requireId],
-            moduleUrls      = curRequireData.moduleUrls,
-            moduleIds       = curRequireData.moduleIds;
+        var curRequireData  = requireMap[requireId];
+        var moduleUrls      = curRequireData.moduleUrls;
+        var moduleIds       = curRequireData.moduleIds;
 
         while (moduleUrls.length) {
             var url = moduleUrls.pop();
@@ -528,9 +534,9 @@ var define, require;
             return currentlyAddingScript.getAttribute('module-indentity');
         }
 
-        var scripts = HEAD.getElementsByTagName("script");
+        var scripts = HEAD.getElementsByTagName('script');
         for (var i = 0, script; script = scripts[i++];) {
-            if (script.readyState === "interactive") {
+            if (script.readyState === 'interactive') {
                 return script.getAttribute('module-indentity');
             }
         }
@@ -549,16 +555,16 @@ var define, require;
             if (!stack && global.opera) {
                 //opera 9没有e.stack,但有e.Backtrace,但不能直接取得,需要对e对象转字符串进行抽取
                 stack = (String(e).match(/of linked script \S+/g) || [])
-                            .join(" ");
+                            .join(' ');
             }
         }
         if (stack) {
             //取得最后一行,最后一个空格或@之后的部分
             stack = stack.split(/[@ ]/g).pop();
             // 去掉换行符
-            stack = stack[0] == "(" ? stack.slice(1, -1) : stack; //.replace(/\s/, '');
+            stack = stack[0] == '(' ? stack.slice(1, -1) : stack; //.replace(/\s/, '');
             //去掉行号与或许存在的出错字符起始位置
-            return stack.replace(/(:\d+)?:\d+$/i, "");
+            return stack.replace(/(:\d+)?:\d+$/i, '');
         }
     }
 
@@ -579,8 +585,10 @@ var define, require;
         if (ERRORFLAG) {
             return;
         }
-        var id, deps, factory;
-        var params = Array.prototype.slice.call(arguments);
+        var id      = '';
+        var deps    = null;
+        var factory = null;
+        var params  = Array.prototype.slice.call(arguments);
         while (params.length) {
             var param = params.shift();
             var cls = Object.prototype.toString.call(param).slice(8, -1);
@@ -708,9 +716,9 @@ var define, require;
      * @param  {[type]} module  [description]
      */
     function getExports(module) {
-        var factory   = module.factory,
-            requireId = module.requireId,
-            realDeps  = module.realDeps;
+        var factory   = module.factory;
+        var requireId = module.requireId;
+        var realDeps  = module.realDeps;
         if (realDeps && realDeps.length) {
             delayLoadModuleMap[module.id] = module;
             for (var i = 0, len = realDeps.length; i < len; i++){
@@ -728,10 +736,11 @@ var define, require;
         else {
             if (!module.exports) {
                 // var args = [require],
-                var args = [],
-                    deps = module.deps;
+                var args = [];
+                var deps = module.deps;
                 if (deps && deps.length) {
-                    var tmpName = '', dep;
+                    var tmpName = '';
+                    var dep     = null;
                     for (var i = 0; i < deps.length; i++) {
                         dep = deps[i];
                         if (moduleMap[dep].exports) {
@@ -758,8 +767,8 @@ var define, require;
      * 处理 realDeps
      */
     function handleRealDeps(realDep, requireId, curModule) {
-        var realDepUrl   = '',
-            normalizeObj = {};
+        var realDepUrl   = '';
+        var normalizeObj = {};
         if (REG.PREFIX_RELATIVE.test(realDep)) {
             normalizeObj = normalizeModuleId(realDep, curModule.baseUrl);
             realDepUrl = normalizeObj.url + '.js';
@@ -805,7 +814,9 @@ var define, require;
     function checkDelayLoadModule(){
         var normalizeObj = {};
         for (var i in delayLoadModuleMap) {
-            var mod = delayLoadModuleMap[i], localRequireLoaded = true, tmp;
+            var mod                = delayLoadModuleMap[i];
+            var localRequireLoaded = true;
+            var tmp                = null;
             for (
                 var j = 0, len = mod.realDeps.length;
                 j < len;
@@ -835,10 +846,11 @@ var define, require;
             if (localRequireLoaded) {
                 if (!mod.exports) {
                     // var args = [require],
-                    var args = [],
-                        deps = mod.deps;
+                    var args = [];
+                    var deps = mod.deps;
                     if (deps && deps.length) {
-                        var tmpName = '', dep;
+                        var tmpName = '';
+                        var dep     = null;
                         for (var i = 0; i < deps.length; i++) {
                             dep = deps[i];
                             if (moduleMap[dep].exports) {
@@ -875,13 +887,13 @@ var define, require;
      * moudleLoad 事件监听处理
      */
     function moduleLoadListener(d) {
-        var curAnalyseMod     = d.curModule,
-            requireId         = curAnalyseMod.requireId,
-            curRequireData    = requireMap[requireId],
-            moduleUrls        = curRequireData.moduleUrls,
-            moduleIds         = curRequireData.moduleIds,
-            analyseModuleList = curRequireData.analyseModuleList,
-            isAllLoad         = true;
+        var curAnalyseMod     = d.curModule;
+        var requireId         = curAnalyseMod.requireId;
+        var curRequireData    = requireMap[requireId];
+        var moduleUrls        = curRequireData.moduleUrls;
+        var moduleIds         = curRequireData.moduleIds;
+        var analyseModuleList = curRequireData.analyseModuleList;
+        var isAllLoad         = true;
 
         for (var key in moduleMap) {
             var mod = moduleMap[key];
@@ -892,9 +904,9 @@ var define, require;
         }
 
         if (isAllLoad) {
-            var args = [],
-                item = null,
-                len  = curRequireData.callbackArgs.length;
+            var args = [];
+            var item = null;
+            var len  = curRequireData.callbackArgs.length;
             for (var i = 0; i < len; i++) {
                 item = curRequireData.callbackArgs[i];
                 args[args.length++] = moduleMap[item].exports;
@@ -921,7 +933,8 @@ var define, require;
      */
     function checkCircle(id, deps) {
         if (deps) {
-            var curMod, len = deps.length;
+            var curMod = null;
+            var len    = deps.length;
             for (var i = 0; i < len; i++) {
                 curMod = moduleMap[deps[i]];
                 if (curMod) {
@@ -969,7 +982,8 @@ var define, require;
 
     function deepClone(target, source){
         if (isArray(source)) {
-            var item, len = source.length;
+            var item = null;
+            var len  = source.length;
             for (var i = 0; i < len; i++) {
                 item = source[i];
                 if (isArray(item)) {
@@ -1037,7 +1051,10 @@ var define, require;
      * @return {[type]} [description]
      */
     function fire(obj, params) {
-        var arr, func, evtType, callbackArgs;
+        var arr          = null;
+        var func         = null;
+        var evtType      = null;
+        var callbackArgs = null;
         if (isObject(params)) {
             evtType = params.type;
             callbackArgs = params.data;
@@ -1052,7 +1069,8 @@ var define, require;
         }
 
         arr = obj[OBJ_EVT_KEY][evtType];
-        var i, item;
+        var i;
+        var item;
         for (i = 0; item = arr[i]; i++) {
             func = item.callback;
             if (isFunction(func)) {
@@ -1103,9 +1121,9 @@ var define, require;
          * 处理引号的情况
          */
         function dealQuote() {
-            var start = index,
-                c = peek,
-                end = factoryStr.indexOf(c, start);
+            var start = index;
+            var c     = peek;
+            var end   = factoryStr.indexOf(c, start);
 
             if (!inBracket) {
                 if (factoryStr.charAt(end - 1) !== '\\') {
@@ -1242,14 +1260,15 @@ var define, require;
         if (factoryStr.indexOf('require', startIndex) == -1) {
             return [];
         }
-        var index = startIndex,
-            peek, length = factoryStr.length,
-            isReg = true,
-            modName = false,
-            parentheseState = false,
-            parentheseStack = [],
-            inBracket = false,
-            res = [];
+        var index           = startIndex;
+        var peek            = null;
+        var length          = factoryStr.length;
+        var isReg           = true;
+        var modName         = false;
+        var parentheseState = false;
+        var parentheseStack = [];
+        var inBracket       = false;
+        var res             = [];
         while (index < length) {
             getNextChar();
             // debugger
@@ -1318,7 +1337,7 @@ var define, require;
     var requireConf = {
         baseUrl: './',
         paths: {}
-    }
+    };
 
     require.config = function(opts){
         for(var key in requireConf){
@@ -1326,7 +1345,7 @@ var define, require;
                 requireConf[key] = opts[key];
             }
         }
-    }
+    };
 
     define.amd = {
         jQuery: true
@@ -1337,7 +1356,9 @@ var define, require;
 })(window);
 
 /**
- * 2013-09-24 修复一个笔误～～～
+ * 2013-09-24
+ * 修复一个笔误～～～
+ * 去掉单 var，规范代码
  *
  * 个人认为，技术上造轮子其实是一件很有意义的事情。很多东西，看似简单，
  * 原理貌似也的确简单，但如果你不亲自动手去实现，那么你不可能知道实现
