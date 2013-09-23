@@ -862,7 +862,7 @@ var define, require;
                             curModule: mod
                         }
                     });
-                    delete delayLoadModuleMap[i];
+                    delete delayLoadModuleMap[mod.id];
                     if (!isEmptyObject(delayLoadModuleMap)) {
                         checkDelayLoadModule();
                     }
@@ -1337,6 +1337,8 @@ var define, require;
 })(window);
 
 /**
+ * 2013-09-24 修复一个笔误～～～
+ *
  * 个人认为，技术上造轮子其实是一件很有意义的事情。很多东西，看似简单，
  * 原理貌似也的确简单，但如果你不亲自动手去实现，那么你不可能知道实现
  * 起来里面到底有多少坑，经历的坑越多，你得到的成长就越大。真正的动手
