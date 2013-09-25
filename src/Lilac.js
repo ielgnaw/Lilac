@@ -1312,7 +1312,9 @@ var define, require;
                 else if (peek === '[') {
                     parentheseStack.push(parentheseState);
                     isReg = true;
-                    inBracket = true;
+                    if (modName) {
+                        inBracket = true;
+                    }
                 }
                 else if (peek === ',') {
                     if(inBracket){
@@ -1322,7 +1324,9 @@ var define, require;
                 }
                 else if (peek === ']') {
                     isReg = parentheseStack.pop();
-                    inBracket = false;
+                    // if (modName) {
+                        inBracket = false;
+                    // }
                 }
                 else {
                     isReg = peek !== ']';
@@ -1356,9 +1360,14 @@ var define, require;
 })(window);
 
 /**
+ * 2013-09-25
+ * 修复
+ * 1. 获取factory内部require时，分析中括号的时候应该加上modName的判断，
+ * 否则会把所有的中括号都当作require的模块来处理
+ *
  * 2013-09-24
- * 修复一个笔误～～～
- * 去掉单 var，规范代码
+ * 1. 修复一个笔误～～～
+ * 2. 去掉单 var，规范代码
  *
  * 个人认为，技术上造轮子其实是一件很有意义的事情。很多东西，看似简单，
  * 原理貌似也的确简单，但如果你不亲自动手去实现，那么你不可能知道实现
