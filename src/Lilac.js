@@ -5,11 +5,6 @@ var define, require;
 
     var DOC = global.document;
     var HEAD = DOC.getElementsByTagName('head')[0] || DOC.body;
-    var IE = navigator.userAgent.match(/MSIE (\d+)/)
-                ?
-                navigator.userAgent.match(/MSIE (\d+)/)[1] | 0
-                :
-                0;
     var OBJ_EVT_KEY = '__objEvtKey__';
     var SCRIPTFRAG = document.createDocumentFragment();
 
@@ -21,6 +16,7 @@ var define, require;
     var MODULE_STATUS_FAIL_CIRCLE = 'circle';   // 模块加载失败，存在循环依赖
 
     var currentlyAddingScript; // @see requirejs
+
     /**
      * 先要得到相对于 config.baseUrl 的绝对地址，
      * 然后根据这个绝对地址，去得到模块的地址
@@ -30,6 +26,7 @@ var define, require;
     var idUrlMap = {}; // moduleId moduleUrl 映射
     var moduleMap = {}; // 存储模块信息的共享变量
     var requireMap = {}; // 记录调用require
+
     /**
      * 具有 localRequireDep 或者 Dep的 module，
      * 要等 localRequireDep 或者 Dep 加载完后再加载 module
@@ -39,12 +36,12 @@ var define, require;
     var ERRORFLAG = false; // 错误的标志位
 
     var REG = {
-        SUFFIX_JS : /(\.js)$/, // js 文件后缀
-        PREFIX_1DOT : /^\.\//, // './' 开头的模块前缀
-        PREFIX_2DOT : /^\.\.\//, // '../' 开头的模块前缀
-        PREFIX_SLASH : /^\//, // '/' 开头的模块前缀
-        URI_PROTOCOL: /^(https:\/\/|http:\/\/|file:\/\/)/, // 包含URL协议
-        PREFIX_RELATIVE: /^\.+\/|^\// // 相对路径前缀
+        SUFFIX_JS       : /(\.js)$/,                           // js 文件后缀
+        PREFIX_1DOT     : /^\.\//,                             // './' 开头的模块前缀
+        PREFIX_2DOT     : /^\.\.\//,                           // '../' 开头的模块前缀
+        PREFIX_SLASH    : /^\//,                               // '/' 开头的模块前缀
+        URI_PROTOCOL    : /^(https:\/\/|http:\/\/|file:\/\/)/, // 包含URL协议
+        PREFIX_RELATIVE : /^\.+\/|^\//                         // 相对路径前缀
     };
 
     /**
@@ -53,33 +50,18 @@ var define, require;
      */
     var waitLoadModule = [];
 
-    /**
-     * fix ie version < 9
-     * Array.prototype.indexOf
-     */
-    if (!Array.prototype.indexOf) {
-        Array.prototype.indexOf = function (value) {
-            var length = this.length;
-            if (!length) {
-                return -1;
+    function arrIndexOf(arr, value) {
+        if (arr.indexOf) {
+            return arr.indexOf(value);
+        }
+
+        for (var i = 0, len = arr.length; i < len; i++) {
+            if (arr[i] === item) {
+                return i;
             }
-            var i = arguments[1] || 0;
-            if (i >= length) {
-                return -1;
-            }
-            if (i < 0) {
-                i += length;
-            }
-            for (; i < length; i++) {
-                if (!Object.prototype.hasOwnProperty.call(this, i)) {
-                    continue;
-                }
-                if (value === this[i]) {
-                    return i;
-                }
-            }
-            return -1;
-        };
+        }
+
+        return -1;
     }
 
     /**
@@ -572,14 +554,6 @@ var define, require;
             }
             curMod.requireId    = requireId;
             curMod.url = moduleUrl;
-
-            // normalizeObj = normalizeModuleId(curMod.id, requireConf.baseUrl);
-            // moduleUrl    = normalizeObj.url + '.js';
-            // idUrlMap[curMod.id] = parseUrl(moduleUrl);
-            // curMod.normalizeId  = normalizeObj.id;
-            // curMod.url          = moduleUrl;
-            // curMod.requireId    = requireId;
-            // curMod.status       = MODULES_STATUS_LOADING;
             if (REG.URI_PROTOCOL.test(curMod.url)) {
                 curMod.baseUrl = requireConf.baseUrl;
             }
@@ -629,16 +603,6 @@ var define, require;
                 }
                 curMod.exports = getExports(curMod);
             }
-
-
-            // if (REG.PREFIX_RELATIVE.test(realDep)) {
-            //     normalizeObj = normalizeModuleId(realDep, curModule.baseUrl);
-            //     realDepUrl = normalizeObj.url + '.js';
-            // }
-            // else {
-            //     normalizeObj = normalizeModuleId(realDep, requireConf.baseUrl);
-            //     realDepUrl = normalizeObj.url + '.js';
-            // }
         }
 
         // console.log(moduleMap);
@@ -1347,15 +1311,17 @@ var define, require;
                 var r   = /^[\w$.]+/.exec(factoryStr.slice(index - 1))[0];
                 modName = (/^require(\s*\.\s*async)?$/.test(r));
                 index   += r.length - 1;
-                parentheseState = ['if', 'for', 'while'].indexOf(r) != -1;
-                isReg =
+                parentheseState = arrIndexOf(['if', 'for', 'while'], r) !== -1;
+                isReg = arrIndexOf(
                     [
                         'else',
                         'in',
                         'return',
                         'typeof',
                         'delete'
-                    ].indexOf(r) != -1;
+                    ],
+                    r
+                ) !== -1;
             }
             else {
                 modName = false;
@@ -1497,6 +1463,7 @@ var define, require;
  * 2013-10-09
  * 1. 改变分析模块的顺序，由原先的在define处分析改为在script load后分析
  * 2. 支持combine
+ * 3. 去掉重写的 Array.prototype.indexOf
  *
  * 2013-09-25
  * 修复
@@ -1513,4 +1480,68 @@ var define, require;
  * 去实现，真正的站在开发者的角度来考虑，这样，你的技艺才能不断的提高！
  */
 
-
+/********************************************************************************************
+ *
+ *
+ *
+ *                                          111111110000001111111
+ *                                   1111100000000000000000000000001111
+ *                                11100000000000000000000000000000000001111
+ *                             1110000000011111             11111000000000011
+ *                           11100000111                           1110000000111
+ *                         110000011                                   11000000011
+ *                        10000011                                        110000001
+ *                      11000011                                             10000011
+ *                     11000011                                               11000011
+ *                    1100011                                                   1000011
+ *                    100001                                                     100001
+ *                  1100001                                                       100001
+ *                  100011                                                         100011
+ *                 100001                                                           10001
+ *                 100011                                                           110011
+ *                110001                                                             10001
+ *                110001                                                             100011
+ *                110011           11111                                             100011
+ *                110011           10011                                             110011
+ *                110011           10011                                              10011
+ *                110011           10011                                              10011
+ *                 10001           10111                                          11 110001
+ *                 100011          10111                                     1111111 110001
+ *                  00011          10111                                  1111111111  10011
+ *                  10001          10111                                11111111      10011
+ *                  110001         10111                               1110111       100011
+ *                   100011        10111                               1111          100011
+ *                    100001       10111                              1111          1100011
+ *                     100001     110111             11101111111111   1111          110011
+ *                      1000011   11011              11100000000111    111          110011
+ *                       1100001 111011                       1        1111         110011
+ *                         100001111011                                1111         10001
+ *                           1111111011                                1111         10001
+ *                               11101                                 11111       110001
+ *                               11101                                 11111       100001
+ *                               11101                                  1111       100011
+ *                               11101                                  1111       100011
+ *                               11101                                  11111     1100111
+ *                               10111                           1    1111111     110011
+ *                               10111                       111111111111111      11001
+ *                               10011                        11111111111        110001
+ *                               10111                                           100011
+ *                               1111                                           110001
+ *                                                                              110011
+ *                                                                             110001
+ *                                    11111                                    100001
+ *                                   1100000111                               110001
+ *                                   1100000001111                           1100011
+ *                                       1100000011                         110001
+ *                                          110000011                      1100011
+ *                                            110000011                   100001
+ *                                               100000111              1100001
+ *                                                 100000011          11000001
+ *                                                   10000000111111110000001
+ *                                                    111000000000000000011
+ *                                                       1110000000000011
+ *                                                           111111111
+ *
+ *
+ *
+ *******************************************************************************************/
