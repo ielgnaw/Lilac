@@ -1,9 +1,15 @@
+
 var define, require;
 
 (function(global, undefined) {
 
     var DOC = global.document;
     var HEAD = DOC.getElementsByTagName('head')[0] || DOC.body;
+    var IE = navigator.userAgent.match(/MSIE (\d+)/)
+                ?
+                navigator.userAgent.match(/MSIE (\d+)/)[1] | 0
+                :
+                0;
     var OBJ_EVT_KEY = '__objEvtKey__';
     var SCRIPTFRAG = document.createDocumentFragment();
 
@@ -40,6 +46,12 @@ var define, require;
         URI_PROTOCOL: /^(https:\/\/|http:\/\/|file:\/\/)/, // 包含URL协议
         PREFIX_RELATIVE: /^\.+\/|^\// // 相对路径前缀
     };
+
+    /**
+     * 等待加载的模块，在define的时候放入到数组中，script load后调用
+     * @type {Array}
+     */
+    var waitLoadModule = [];
 
     /**
      * fix ie version < 9
@@ -344,6 +356,7 @@ var define, require;
 
     function require() {
         ERRORFLAG = false;
+        waitLoadModule = [];
         // 得到相对于 config.baseUrl 的绝对地址
         baseAbsolutePath =
             baseAbsolutePath
@@ -410,6 +423,18 @@ var define, require;
         for (var i = 0, len = ids.length; i < len; i++) {
             moduleId     = ids[i];
             normalizeObj = normalizeModuleId(moduleId, requireConf.baseUrl);
+
+            if (
+                REG.URI_PROTOCOL.test(moduleId)
+                    || REG.SUFFIX_JS.test(moduleId)
+            ) {
+                for (var key in requireConf.paths) {
+                    if (requireConf.paths[key] === moduleId){
+                        moduleId = key;
+                        break;
+                    }
+                }
+            }
             moduleUrl    = normalizeObj.url + '.js';
             if (!checkModuleByUrl(moduleUrl)) {
                 idUrlMap[moduleId]  = parseUrl(moduleUrl);
@@ -468,7 +493,6 @@ var define, require;
             var id  = moduleIds.pop();
             append2Frag(id, url, requireId);
         }
-
         HEAD.appendChild(SCRIPTFRAG);
         removeScriptInFrag();
     }
@@ -505,7 +529,8 @@ var define, require;
                     || (/loaded|complete/.test(el.readyState))) {
                 el.onload = el.onreadystatechange = null;
                 el = null;
-                func && isFunction(func) && func.call();
+                handleWaitLoadModule(requireId);
+                // func && isFunction(func) && func.call();
             }
         }
         //TODO: IE不支持onerror，加载一个不存在脚本怎么处理
@@ -521,6 +546,102 @@ var define, require;
                 + moduleId + '的url为：'+ moduleUrl
             );
         }
+    }
+
+    function handleWaitLoadModule(requireId) {
+        var curMod;
+        var normalizeObj;
+        var moduleUrl;
+        for (var i = 0, len = waitLoadModule.length; i < len; i++) {
+            // debugger
+            curMod = waitLoadModule[i];
+            if (curMod.status === MODULES_STATUS_SUCCESS) {
+                continue;
+            }
+            if (moduleMap[curMod.id]) {
+                moduleUrl          = moduleMap[curMod.id].url;
+                curMod.normalizeId = moduleMap[curMod.id].normalizeId;
+                curMod.status      = moduleMap[curMod.id].status;
+            }
+            else {
+                normalizeObj = normalizeModuleId(curMod.id, requireConf.baseUrl);
+                moduleUrl    = normalizeObj.url + '.js';
+                idUrlMap[curMod.id] = parseUrl(moduleUrl);
+                curMod.normalizeId  = normalizeObj.id;
+                curMod.status       = MODULES_STATUS_LOADING;
+            }
+            curMod.requireId    = requireId;
+            curMod.url = moduleUrl;
+
+            // normalizeObj = normalizeModuleId(curMod.id, requireConf.baseUrl);
+            // moduleUrl    = normalizeObj.url + '.js';
+            // idUrlMap[curMod.id] = parseUrl(moduleUrl);
+            // curMod.normalizeId  = normalizeObj.id;
+            // curMod.url          = moduleUrl;
+            // curMod.requireId    = requireId;
+            // curMod.status       = MODULES_STATUS_LOADING;
+            if (REG.URI_PROTOCOL.test(curMod.url)) {
+                curMod.baseUrl = requireConf.baseUrl;
+            }
+            else {
+                curMod.baseUrl =
+                    curMod.url.substring(0, curMod.url.lastIndexOf('/'));
+            }
+
+            if (isFunction(curMod.factory)) {
+                curMod.realDeps = getDependencies(curMod.factory.toString());
+            }
+
+            moduleMap[curMod.id] = curMod;
+            if (
+                !moduleMap[curMod.id][OBJ_EVT_KEY]
+                ||
+                !moduleMap[curMod.id][OBJ_EVT_KEY]['moduleLoad']
+            ) {
+                register(
+                    moduleMap[curMod.id],
+                    'moduleLoad',
+                    moduleLoadListener
+                );
+            }
+            // debugger
+            if (!curMod.deps || !curMod.deps.length) {
+                if (!curMod.realDeps || !curMod.realDeps.length) {
+                    curMod.exports = getExports(curMod);
+                    fire(curMod, {
+                        type: 'moduleLoad',
+                        data: {
+                            curModule: curMod
+                        }
+                    });
+                }
+                else {
+                    curMod.exports = getExports(curMod);
+                }
+            }
+            else {
+                if (!curMod.realDeps || !curMod.realDeps.length) {
+                    curMod.realDeps = curMod.deps;
+                }
+                else {
+                    curMod.realDeps =
+                        curMod.realDeps.concat(curMod.deps);
+                }
+                curMod.exports = getExports(curMod);
+            }
+
+
+            // if (REG.PREFIX_RELATIVE.test(realDep)) {
+            //     normalizeObj = normalizeModuleId(realDep, curModule.baseUrl);
+            //     realDepUrl = normalizeObj.url + '.js';
+            // }
+            // else {
+            //     normalizeObj = normalizeModuleId(realDep, requireConf.baseUrl);
+            //     realDepUrl = normalizeObj.url + '.js';
+            // }
+        }
+
+        // console.log(moduleMap);
     }
 
     /**
@@ -620,18 +741,25 @@ var define, require;
             }
         }
 
+        waitLoadModule.push({
+            id      : id,
+            deps    : deps,
+            factory : factory,
+            status  : MODULES_STATUS_DEFINED
+        });
+        return;
+
         /**
          * define 这一块的逻辑有点混乱，日后改进
          * 处理 combine 会有问题
          * 暂时仅支持 一个文件定义一个模块
          */
-        var curMod =
+        /*var curMod =
             moduleMap[id]
             ?
             moduleMap[id]
             :
             findModuleByNormalizeId(id);
-
 
         if (!curMod) {
             // console.log(moduleMap, id, normalizeModuleId(id, requireConf.baseUrl));
@@ -708,7 +836,7 @@ var define, require;
                     curMod.realDeps.concat(curMod.deps);
             }
             curMod.exports = getExports(curMod);
-        }
+        }*/
     }
 
     /**
@@ -784,6 +912,7 @@ var define, require;
                 normalizeId : normalizeObj.id,
                 url         : realDepUrl,
                 baseUrl     : requireConf.baseUrl,
+                // baseUrl     : curModule.baseUrl,
                 status      : MODULES_STATUS_UNDEFINE
             }
             register(
@@ -887,7 +1016,9 @@ var define, require;
      * moudleLoad 事件监听处理
      */
     function moduleLoadListener(d) {
+        // debugger
         var curAnalyseMod     = d.curModule;
+        var callback          = d.callback;
         var requireId         = curAnalyseMod.requireId;
         var curRequireData    = requireMap[requireId];
         var moduleUrls        = curRequireData.moduleUrls;
@@ -900,6 +1031,9 @@ var define, require;
             if (mod.status != MODULES_STATUS_SUCCESS) {
                 isAllLoad = false;
                 break;
+            }
+            else {
+                // callback && callback();
             }
         }
 
@@ -1360,6 +1494,10 @@ var define, require;
 })(window);
 
 /**
+ * 2013-10-09
+ * 1. 改变分析模块的顺序，由原先的在define处分析改为在script load后分析
+ * 2. 支持combine
+ *
  * 2013-09-25
  * 修复
  * 1. 获取factory内部require时，分析中括号的时候应该加上modName的判断，
@@ -1374,3 +1512,5 @@ var define, require;
  * 起来里面到底有多少坑，经历的坑越多，你得到的成长就越大。真正的动手
  * 去实现，真正的站在开发者的角度来考虑，这样，你的技艺才能不断的提高！
  */
+
+

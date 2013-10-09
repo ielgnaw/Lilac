@@ -170,6 +170,19 @@
                 </a>
             </td>
         </tr>
+        <tr>
+            <td class="row firstCell">combine</td>
+            <td class="row">
+                <a class="button" id="modules/combine/index" title="modules/combine/index" href="javascript:void(0)">
+                    <span>combine1</span>
+                </a>
+            </td>
+            <td class="row">
+                <a class="button" id="modules/combine/index2" title="modules/combine/index2" href="javascript:void(0)">
+                    <span>combine2</span>
+                </a>
+            </td>
+        </tr>
     </table>
 </div>
 <div class="result" id="result"></div>
@@ -194,6 +207,68 @@
             return typeof id == 'string' ? document.getElementById(id) : id;
         }
 
+        $('modules/combine/index').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/combine/index</b> <br><br>'
+                  + 'modules/combine/index === index.name ';
+            $('result').innerHTML = html;
+            require('modules/combine/index', function(index){
+                var ret = (index.name === 'modules/combine/index');
+                var ret1 = index.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + 'modules/combine/index.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        }
+
+        $('modules/combine/index2').onclick = function(){
+            $('result').innerHTML = '';
+            var html = '';
+            html += 'require <b>modules/combine/index2</b> <br><br>'
+                  + 'modules/combine/index2 === index2.name ';
+            $('result').innerHTML = html;
+            require('modules/combine/index2', function(index2){
+                var ret = (index2.name === 'modules/combine/index2');
+                var ret1 = index2.check();
+                html += ''
+                    +
+                    (
+                        ret
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret
+                    + '</b><br><br>'
+                    + 'modules/combine/index2.check()'
+                    +
+                    (
+                        ret1
+                        ? '<b style="margin-left: 20px;background: #00FF00">'
+                        : '<b style="margin-left: 20px;background: red">'
+                    )
+                    + ret1
+                    + '</b>';
+                $('result').innerHTML = html;
+            });
+        }
+
         $('modules/simple/index/defineId').onclick = function(){
             $('result').innerHTML = '';
             var html = '';
@@ -201,6 +276,7 @@
                   + 'modules/simple/index/defineId === defineId.name ';
             $('result').innerHTML = html;
             require(['modules/simple/index/defineId'], function(defineId){
+                // console.warn(arguments);
                 var ret = (defineId.name === 'modules/simple/index/defineId');
                 html += ''
                     +
@@ -222,6 +298,7 @@
                   + 'modules/simple/index/noDefineId === noDefineId.name ';
             $('result').innerHTML = html;
             require(['modules/simple/index/noDefineId'], function(noDefineId){
+                // console.warn(arguments);
                 var ret = (noDefineId.name === 'modules/simple/index/noDefineId');
                 html += ''
                     +
@@ -243,6 +320,7 @@
                   + 'modules/simple/index/objectFactory === objectFactory.name ';
             $('result').innerHTML = html;
             require(['modules/simple/index/objectFactory'], function(objectFactory){
+                // console.warn(arguments);
                 var ret = (objectFactory.name === 'modules/simple/index/objectFactory');
                 html += ''
                     +
@@ -265,6 +343,8 @@
             $('result').innerHTML = html;
             // 现在直接 require 一个http路径的js文件还必须在paths中配置
             require(['http://libs.baidu.com/jquery/1.9.1/jquery'], function(){
+            // require(['jquery'], function(){
+                // console.warn(arguments);
                 html += ''
                     + '<b style="margin-left: 20px;background: #00FF00">'
                     + window.jQuery().jquery
@@ -280,6 +360,7 @@
                  + 'less env ';
             $('result').innerHTML = html;
             require(['less'], function(){
+                // console.warn(arguments);
                 setTimeout(function(){
                     html += ''
                         + '<b style="margin-left: 20px;background: #00FF00">'
@@ -297,6 +378,7 @@
                   + 'modules/dependency/simpleDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/dependency/simpleDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/dependency/simpleDependency/index');
                 var ret1 = index.check();
                 html += ''
@@ -330,6 +412,7 @@
                   + 'modules/dependency/simpleDependency/depNotDefineId === depNotDefineId.name ';
             $('result').innerHTML = html;
             require(['modules/dependency/simpleDependency/depNotDefineId'], function(depNotDefineId){
+                // console.warn(arguments);
                 var ret = (depNotDefineId.name === 'modules/dependency/simpleDependency/depNotDefineId');
                 var ret1 = depNotDefineId.check();
                 html += ''
@@ -363,6 +446,7 @@
                   + 'modules/dependency/simpleDependency/relative === relative.name ';
             $('result').innerHTML = html;
             require(['modules/dependency/simpleDependency/relative'], function(relative){
+                // console.warn(arguments);
                 var ret = (relative.name === 'modules/dependency/simpleDependency/relative');
                 var ret1 = relative.check();
                 html += ''
@@ -394,6 +478,7 @@
                   + 'modules/dependency/deepDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/dependency/deepDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/dependency/deepDependency/index');
                 var ret1 = index.check();
                 html += ''
@@ -425,6 +510,7 @@
                   + 'modules/dependency/relativeDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/dependency/relativeDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/dependency/relativeDependency/index');
                 var ret1 = index.check();
                 html += ''
@@ -456,6 +542,7 @@
                   + 'modules/cjs/simpleDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/cjs/simpleDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/cjs/simpleDependency/index');
                 var ret1 = index.check();
                 html += ''
@@ -489,6 +576,7 @@
                   + 'modules/cjs/simpleDependency/depNotDefineId === depNotDefineId.name ';
             $('result').innerHTML = html;
             require(['modules/cjs/simpleDependency/depNotDefineId'], function(depNotDefineId){
+                // console.warn(arguments);
                 var ret = (depNotDefineId.name === 'modules/cjs/simpleDependency/depNotDefineId');
                 var ret1 = depNotDefineId.check();
                 html += ''
@@ -522,6 +610,7 @@
                   + 'modules/cjs/simpleDependency/relative === relative.name ';
             $('result').innerHTML = html;
             require(['modules/cjs/simpleDependency/relative'], function(relative){
+                // console.warn(arguments);
                 var ret = (relative.name === 'modules/cjs/simpleDependency/relative');
                 var ret1 = relative.check();
                 html += ''
@@ -553,6 +642,7 @@
                   + 'modules/cjs/deepDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/cjs/deepDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/cjs/deepDependency/index');
                 var ret1 = index.check();
                 html += ''
@@ -584,6 +674,7 @@
                   + 'modules/cjs/relativeDependency/index === index.name ';
             $('result').innerHTML = html;
             require(['modules/cjs/relativeDependency/index'], function(index){
+                // console.warn(arguments);
                 var ret = (index.name === 'modules/cjs/relativeDependency/index');
                 var ret1 = index.check();
                 html += ''
