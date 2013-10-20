@@ -338,7 +338,13 @@ var define, require;
 
     function require() {
         ERRORFLAG = false;
-        waitLoadModule = [];
+        var tmpWaitLoadModule = [];
+        for (var i = 0, len = waitLoadModule.length; i < len; i++) {
+            if (waitLoadModule[i].status !== MODULES_STATUS_SUCCESS) {
+                tmpWaitLoadModule.push(waitLoadModule[i]);
+            }
+        }
+        waitLoadModule = tmpWaitLoadModule;
         // 得到相对于 config.baseUrl 的绝对地址
         baseAbsolutePath =
             baseAbsolutePath
@@ -1460,6 +1466,9 @@ var define, require;
 })(window);
 
 /**
+ * 2013-10-20
+ * 1. 修复waitLoadModule的一个bug
+ *
  * 2013-10-09
  * 1. 改变分析模块的顺序，由原先的在define处分析改为在script load后分析
  * 2. 支持combine
